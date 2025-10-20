@@ -18,6 +18,7 @@ from __future__ import annotations
 import time
 import math
 import enum
+import threading
 from typing import Any, Callable, Dict
 
 try:
@@ -46,7 +47,43 @@ except ImportError:  # pragma: no cover - allow running file directly
     net_mod = importlib.import_module("Agents.metrics.networks")
 
 # Registry of provider functions: name -> callable returning dict
-_PROVIDERS: Dict[str, Callable[[], dict]] = {}
+_PROVIDERS = {}  # existing provider registry
+_LATEST = {}
+_LOCK = threading.RLock()
+_LATEST: dict[str, dict] = {}  # cache of most recent results
+_LAST_UPDATE: dict[str, float] = {}
+
+def set_latest(name: str, data: dict):
+    """Save the latest snapshot for a provider."""
+    _LATEST[name] = data
+    _LAST_UPDATE[name] = time.time()
+
+def get_latest(name: str) -> dict | None:
+    """Get last known snapshot for a provider."""
+    return _LATEST.get(name)
+
+
+def register_provider(name: str, func: callable):
+    with _LOCK:
+        _PROVIDERS[name] = func
+
+def get_provider(name: str):
+    with _LOCK:
+        return _PROVIDERS.get(name)
+
+def get_providers():
+    with _LOCK:
+        return list(_PROVIDERS.keys())
+
+def set_latest(name: str, value):
+    with _LOCK:
+        _LATEST[name] = value
+
+def gather_all():
+    with _LOCK:
+        # return a shallow copy to avoid callers mutating internal state
+        combined = {k: _LATEST.get(k) for k in _PROVIDERS.keys()}
+    return combined
 
 
 def to_primitive(obj: Any, _seen: set | None = None) -> Any:
@@ -182,24 +219,4 @@ register("disk", disk_mod.get_disk_metrics)
 register("network", net_mod.get_network_metrics)
 
 
-if __name__ == "__main__":
-    # quick smoke test
-    import json
-    import rich
-    import pathlib
-    import sys
-    import os
-    # create a JSON snapshot of all metrics and write to a file
-
-    snapshot = gather_all()
-
-    # default filename includes timestamp, or use first CLI arg as path
-    default_name = f"metrics_snapshot_{int(snapshot.get('timestamp', time.time()))}.json"
-    out_path = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else pathlib.Path(default_name)
-    out_path = out_path.expanduser().resolve()
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-
-with out_path.open("w", encoding="utf-8") as fh:
-    json.dump(snapshot, fh, indent=2, ensure_ascii=False)
-    rich.print(f"[green]Wrote metrics snapshot to[/green] {out_path}")
     

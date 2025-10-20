@@ -11,6 +11,7 @@ env/
 .venv/
 
 # Logs and temp files
+logs/
 *.log
 *.tmp
 *.bak

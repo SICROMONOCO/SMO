@@ -154,11 +154,3 @@ def get_network_metrics() -> dict[str, Any]:
         pass
 
     return metrics
-
-
-# ──────────────────────────────
-# 🧪 Debug / test run
-# ──────────────────────────────
-if __name__ == "__main__":
-    import rich
-    rich.print(get_network_metrics())

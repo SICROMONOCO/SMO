@@ -1,7 +1,7 @@
 # metrics/memory.py
 import psutil
 from psutil._common import bytes2human
-import rich
+
 
 
 def get_memory_metrics():
@@ -105,4 +105,3 @@ def get_memory_metrics():
     memory_metrics = {**virtual_memory, **swap_memory}
     return memory_metrics     
     
-rich.print(get_memory_metrics())

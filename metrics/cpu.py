@@ -1,6 +1,6 @@
 # metrics/cpu.py
 import psutil
-import rich
+
 def get_cpu_metrics():
     # CPU Percent (average + per core)
     per_core_usages = psutil.cpu_percent(interval=0.1, percpu=True)
@@ -85,5 +85,3 @@ def get_cpu_metrics():
         "load": load_avg,
         "stats": cpu_stats
     }
-
-rich.print(get_cpu_metrics())
