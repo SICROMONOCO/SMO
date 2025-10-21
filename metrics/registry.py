@@ -41,10 +41,11 @@ except ImportError:  # pragma: no cover - allow running file directly
     if workspace_root not in sys.path:
         sys.path.insert(0, workspace_root)
 
-    cpu_mod = importlib.import_module("Agents.metrics.cpu")
-    memory_mod = importlib.import_module("Agents.metrics.memory")
-    disk_mod = importlib.import_module("Agents.metrics.diskes")
-    net_mod = importlib.import_module("Agents.metrics.networks")
+    # Import from the local 'metrics' package when executed outside a package
+    cpu_mod = importlib.import_module("metrics.cpu")
+    memory_mod = importlib.import_module("metrics.memory")
+    disk_mod = importlib.import_module("metrics.diskes")
+    net_mod = importlib.import_module("metrics.networks")
 
 # Registry of provider functions: name -> callable returning dict
 _PROVIDERS = {}  # existing provider registry

@@ -1,15 +1,10 @@
-{
-  "refresh": {
-    "cpu": 2,
-    "memory": 5,
-    "disk": 10,
-    "network": 5
-  },
-  "logging": {
-    "format": "json",
-    "csv_enabled": true
-  },
-  "agent": {
-    "snapshot_interval": 2
-  }
-}
+refresh:
+  cpu: 1
+  memory: 5
+  disk: 10
+  network: 5
+logging:
+  format: json
+  csv_enabled: true
+agent:
+  snapshot_interval: 2

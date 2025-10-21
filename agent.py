@@ -24,7 +24,16 @@ def _load_yaml_module():
     try:
         return importlib.import_module("yaml")
     except Exception:
+        # PyYAML not available — provide a minimal JSON-based shim so the
+        # rest of the program can still run. Be explicit: YAML files with
+        # non-JSON features (anchors, tags, comments) won't parse here.
         import json as _json
+        import sys as _sys
+        _sys.stderr.write(
+            "[WARN] PyYAML not found; falling back to JSON-only config parsing.\n"
+            "       Install PyYAML (`pip install pyyaml`) to use full YAML support.\n"
+        )
+
         class _yaml:
             @staticmethod
             def safe_load(stream):
@@ -34,7 +43,14 @@ def _load_yaml_module():
                     content = stream
                 if not content:
                     return {}
-                return _json.loads(content)
+                try:
+                    return _json.loads(content)
+                except Exception as exc:
+                    # Provide a helpful error so users understand why parsing failed
+                    raise RuntimeError(
+                        "Config parsing failed: file is not valid JSON and PyYAML is not installed. "
+                        "Install PyYAML or convert the config to JSON."
+                    ) from exc
 
             @staticmethod
             def safe_dump(data, stream=None):
@@ -43,6 +59,7 @@ def _load_yaml_module():
                     stream.write(s)
                     return
                 return s
+
         return _yaml
 
 yaml = _load_yaml_module()
@@ -50,10 +67,11 @@ yaml = _load_yaml_module()
 import logger
 from updater import start_all
 from metrics import registry
+import pathlib
 
 
 # ---------------------------------------------------------------------------
-# Configuration Loader
+# Configuration Loader (Fixed)
 # ---------------------------------------------------------------------------
 
 DEFAULT_CONFIG = {
@@ -61,29 +79,29 @@ DEFAULT_CONFIG = {
     "agent": {"snapshot_interval": 2},
 }
 
-CONFIG_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config", "config.yaml")
-
+# Resolve the root of the project dynamically
+PROJECT_ROOT = pathlib.Path(__file__).resolve().parent  # project root (this file sits in the repo root)
+CONFIG_PATH = PROJECT_ROOT / "config" / "config.yaml"
 
 def load_config() -> dict:
-    """Load YAML config or fall back to defaults."""
-    if not os.path.exists(CONFIG_PATH):
-        os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
+    """Load YAML config or create a default one if missing."""
+    if not CONFIG_PATH.exists():
+        CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
         with open(CONFIG_PATH, "w") as f:
             yaml.safe_dump(DEFAULT_CONFIG, f)
+        print(f"[CONFIG] Created default config at {CONFIG_PATH}")
         return DEFAULT_CONFIG
 
-    with open(CONFIG_PATH, "r") as f:
-        try:
-            data = yaml.safe_load(f)
-            if not isinstance(data, dict):
-                raise ValueError("Invalid YAML structure")
-            # merge with defaults
-            merged = DEFAULT_CONFIG.copy()
-            merged.update(data)
-            return merged
-        except Exception as e:
-            print(f"[CONFIG] Failed to load config: {e}")
-            return DEFAULT_CONFIG
+    try:
+        with open(CONFIG_PATH, "r") as f:
+            data = yaml.safe_load(f) or {}
+        merged = DEFAULT_CONFIG.copy()
+        merged.update(data)
+        return merged
+    except Exception as e:
+        print(f"[CONFIG] Failed to load config from {CONFIG_PATH}: {e}")
+        return DEFAULT_CONFIG
+
 
 
 # ---------------------------------------------------------------------------
