@@ -11,8 +11,6 @@ import json
 import os
 from datetime import datetime
 from typing import Any, Dict
-from metrics import registry
-
 
 # Keep imports light at module import time (metrics can depend on psutil).
 
@@ -124,7 +122,4 @@ def log_snapshot(snapshot: Dict[str, Any]) -> None:
     """Log snapshot to JSONL and CSV (best-effort)."""
     log_json(snapshot)
     log_csv(snapshot)
-
-if __name__ == "__main__":
-    log_snapshot(registry.gather_all())
 
