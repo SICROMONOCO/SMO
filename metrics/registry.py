@@ -27,6 +27,7 @@ try:
     from . import memory as memory_mod
     from . import diskes as disk_mod
     from . import networks as net_mod
+    from . import process as process_mod
 except ImportError:  # pragma: no cover - allow running file directly
     # when executed as a script, the package context may be missing; fall back
     # to absolute imports using the package path 'Agents.metrics'.
@@ -46,6 +47,7 @@ except ImportError:  # pragma: no cover - allow running file directly
     memory_mod = importlib.import_module("metrics.memory")
     disk_mod = importlib.import_module("metrics.diskes")
     net_mod = importlib.import_module("metrics.networks")
+    process_mod = importlib.import_module("metrics.process")
 
 # Registry of provider functions: name -> callable returning dict
 _PROVIDERS = {}  # existing provider registry
@@ -218,6 +220,7 @@ register("cpu", cpu_mod.get_cpu_metrics)
 register("memory", memory_mod.get_memory_metrics)
 register("disk", disk_mod.get_disk_metrics)
 register("network", net_mod.get_network_metrics)
+register("process", process_mod.gather)
 
 
     

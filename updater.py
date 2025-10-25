@@ -16,6 +16,7 @@ DEFAULT_INTERVALS = {
     "memory": 5,
     "disk": 10,
     "network": 5,
+    "process": 2,  # Process metrics should be frequent to track our resource usage
 }
 
 _registry_lock = threading.Lock()
