@@ -47,20 +47,23 @@ def evaluate_alerts(snapshot: dict, config: dict) -> list:
     # Memory
     mem_val = (
         snapshot.get("memory", {})
-        .get("virtual", {})
+        .get("virtual_memory", {})
         .get("percent", {})
         .get("value")
     )
+    logging.debug(f"Memory value: {mem_val}, Threshold: {thresholds.get('memory_percent')}")
     if mem_val is not None and "memory_percent" in thresholds:
         if check_threshold(mem_val, thresholds["memory_percent"], "above"):
-            alerts.append({
-                "metric": "memory_percent",
+            alert = {
+                "metric": "memory_percent",  # Match the config key
                 "value": mem_val,
                 "threshold": thresholds["memory_percent"],
                 "level": "warning",
                 "time": ts,
                 "message": f"Memory usage {mem_val}% > {thresholds['memory_percent']}%"
-            })
+            }
+            alerts.append(alert)
+            logging.info(f"Added memory alert: {alert}")
 
     # Disk usage
     for dev, part in snapshot.get("disk", {}).items():
@@ -101,12 +104,54 @@ def evaluate_alerts(snapshot: dict, config: dict) -> list:
 
 def process_alerts(snapshot: dict, config: dict, logger=None):
     alerts = evaluate_alerts(snapshot, config)
-    
-    # If there are alerts, add them to the metrics structure
+
+    def _attach_alert(alert: dict):
+        """Attach a minimal alert dict to the specific metric in snapshot.
+
+        We avoid replacing the snapshot or dumping large structures. Instead we
+        inject a small `alert` field on the specific metric dict so the metric
+        remains the owner of its alert information.
+        """
+        metric = alert.get("metric", "")
+        # Default minimal payload
+        minimal = {
+            "level": alert.get("level"),
+            "time": alert.get("time"),
+            "message": alert.get("message"),
+            "value": alert.get("value"),
+            "threshold": alert.get("threshold"),
+        }
+
+        try:
+            if metric == "cpu_percent":
+                target = snapshot.setdefault("cpu", {}).setdefault("average", {}).setdefault("cpu_percent", {})
+                target.setdefault("alert", minimal)
+            # Memory alerts
+            elif metric == "memory_percent":
+                target = snapshot.setdefault("memory", {}).setdefault("virtual_memory", {}).setdefault("percent", {})
+                target["alert"] = minimal  # Use direct assignment instead of setdefault
+            elif metric.startswith("disk_usage"):
+                # format is disk_usage:<device>
+                parts = metric.split(":", 1)
+                if len(parts) == 2:
+                    dev = parts[1]
+                    target = snapshot.setdefault("disk", {}).setdefault(dev, {}).setdefault("metrics", {}).setdefault("usage_percent", {})
+                    target.setdefault("alert", minimal)
+            elif metric == "network_bytes_sent":
+                target = snapshot.setdefault("network", {}).setdefault("io_counters", {}).setdefault("metrics", {}).setdefault("bytes_sent", {})
+                target.setdefault("alert", minimal)
+            else:
+                # Fallback: attach at top-level `alerts_fallback` list so we don't lose info
+                al = snapshot.setdefault("alerts_fallback", [])
+                al.append(minimal)
+        except Exception:
+            # Do not allow attach failures to propagate
+            logging.exception("Failed to attach alert to snapshot for %s", metric)
+
+    # Log to console and attach minimal info to the specific metrics only
     if alerts:
         for alert in alerts:
             msg = f"[{alert['level'].upper()}] {alert['message']}"
-            # log at the appropriate level for console output
             level = alert.get("level", "warning").lower()
             if level == "info":
                 logging.info(msg)
@@ -114,10 +159,8 @@ def process_alerts(snapshot: dict, config: dict, logger=None):
                 logging.error(msg)
             else:
                 logging.warning(msg)
-                
-        # Add alerts to the snapshot instead of logging separately
-        snapshot["alerts"] = alerts
+
+            _attach_alert(alert)
+
     return alerts
-
-    
-
+# ...existing code...
