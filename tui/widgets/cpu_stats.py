@@ -23,7 +23,7 @@ class CPUStatsGroup(MetricGroup):
         table.add_column()
 
         # --- Average Load ---
-        avg_load = cpu_data.get("average", {}).get("cpu_percent", {}).get("value")
+        avg_load = cpu_data.get("average", {}).get("cpu_percent", {}).get("value", 0.0)
         avg_load_text = Text(f"{avg_load:.2f}%", style="bold green" if avg_load < 80 else "bold red")
         table.add_row("Average Load:", avg_load_text)
 
