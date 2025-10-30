@@ -80,12 +80,16 @@ MetricGroup > Label {
     margin-top: 1;
 }
 
-#ui-editor-sidebar {
+#live-view-sidebar {
     width: 30%;
     min-width: 25;
     border-right: thick #2a2a2a;
     padding-right: 2;
     margin-right: 2;
+}
+
+.config-section-header {
+    margin-top: 1;
 }
 
 .alert-highlight {
@@ -127,17 +131,39 @@ class TUIDashboardApp(App):
     METRICS_LOG_PATH = Path(__file__).parent.parent / "logs" / "smo_metrics.jsonl"
 
     def load_config_to_ui(self) -> None:
-        """Load config from YAML and populate the input fields."""
+        """Load config from YAML and dynamically populate the config editor."""
         try:
+            container = self.query_one("#config-editor-container")
+            container.remove_children()
             with open(self.CONFIG_PATH, "r") as f:
                 config = yaml.safe_load(f)
-
-            alerts_config = config.get("alerts", {})
-            self.query_one("#input_cpu_thresh", Input).value = str(alerts_config.get("cpu_percent", ""))
-            self.query_one("#input_mem_thresh", Input).value = str(alerts_config.get("memory_percent", ""))
-
-        except (IOError, yaml.YAMLError) as e:
+            widgets = self._create_config_widgets(config)
+            container.mount(*widgets)
+        except (IOError, yaml.YAMLError, NoMatches) as e:
             self.notify(f"Error loading config: {e}", severity="error")
+
+    def _set_nested_dict_value(self, d: dict, keys: str, value: str):
+        """Sets a value in a nested dictionary using a dot-separated key string, attempting type conversion."""
+        keys_list = keys.split('.')
+        current_level = d
+        for key in keys_list[:-1]:
+            current_level = current_level.setdefault(key, {})
+
+        last_key = keys_list[-1]
+        original_value = current_level.get(last_key)
+
+        new_value = value
+        if original_value is not None:
+            original_type = type(original_value)
+            try:
+                if original_type == bool:
+                    new_value = value.lower() in ['true', '1', 't', 'y', 'yes']
+                else:
+                    new_value = original_type(value)
+            except (ValueError, TypeError):
+                pass # Keep as string if conversion fails
+
+        current_level[last_key] = new_value
 
     def save_config_from_ui(self) -> None:
         """Save the current UI input values to the config file."""
@@ -145,17 +171,20 @@ class TUIDashboardApp(App):
             with open(self.CONFIG_PATH, "r") as f:
                 config = yaml.safe_load(f)
 
-            config["alerts"]["cpu_percent"] = int(self.query_one("#input_cpu_thresh", Input).value)
-            config["alerts"]["memory_percent"] = int(self.query_one("#input_mem_thresh", Input).value)
+            inputs = self.query("#config-editor-container Input")
+            for input_widget in inputs:
+                if input_widget.id:
+                    key_path = input_widget.id.replace("config-input-", "").replace("-", ".")
+                    value = input_widget.value
+                    self._set_nested_dict_value(config, key_path, value)
 
             with open(self.CONFIG_PATH, "w") as f:
-                yaml.safe_dump(config, f)
+                yaml.safe_dump(config, f, default_flow_style=False, sort_keys=False)
 
             self.notify("Configuration saved successfully!", severity="information")
 
-        except (IOError, yaml.YAMLError, ValueError) as e:
+        except (IOError, yaml.YAMLError, ValueError, NoMatches) as e:
             self.notify(f"Error saving config: {e}", severity="error")
-
 
     def update_metrics(self) -> None:
         """Reads and parses the last line from the metrics log file."""
@@ -203,6 +232,24 @@ class TUIDashboardApp(App):
 
         self.sub_title = f"Displaying {len(new_groups)} metric groups"
 
+    def _create_config_widgets(self, config_data: dict, parent_key: str = "") -> list:
+        """Recursively create widgets for the config editor."""
+        widgets = []
+        for key, value in config_data.items():
+            current_key = f"{parent_key}.{key}" if parent_key else key
+            if isinstance(value, dict):
+                widgets.append(Static(f"[bold]{key.replace('_', ' ').title()}:[/bold]", classes="config-section-header"))
+                widgets.extend(self._create_config_widgets(value, current_key))
+            else:
+                widgets.append(
+                    Input(
+                        placeholder=f"{key}: {value}",
+                        value=str(value),
+                        id=f"config-input-{current_key.replace('.', '-')}"
+                    )
+                )
+        return widgets
+
     # --- Main UI Composition ---
 
     def compose(self) -> ComposeResult:
@@ -211,30 +258,25 @@ class TUIDashboardApp(App):
 
         with TabbedContent(initial="live_view_tab"):
             with TabPane("Live View", id="live_view_tab"):
-                yield ScrollableContainer(id="live-view-container")
-
-            with TabPane("Config Editor", id="config_editor_tab"):
-                with Container(id="config-editor-container"):
-                    yield Static("Edit Alert Thresholds:")
-                    yield Input(placeholder="cpu_threshold: 80", id="input_cpu_thresh")
-                    yield Input(placeholder="memory_threshold: 90", id="input_mem_thresh")
-                    with Container(id="config-editor-buttons"):
-                        yield Button("Save Changes", variant="success", id="save_config")
-                        yield Button("Restore Defaults", variant="error", id="restore_config")
-
-            with TabPane("UI Editor", id="ui_editor_tab"):
-                with Horizontal(id="ui-editor-container"):
-                    with VerticalScroll(id="ui-editor-sidebar"):
+                with Horizontal(id="live-view-layout"):
+                    with VerticalScroll(id="live-view-sidebar"):
                         yield Label("Toggle Metric Groups:")
                         for group_id, info in self.available_groups.items():
                             is_active = group_id in self.active_groups
                             yield Switch(name=info["name"], value=is_active, id=f"toggle_{group_id}")
+                        yield Static("Hover over a switch to see its description.", id="ui-editor-description")
 
-                    yield Static("Hover over a switch to see its description.", id="ui-editor-description")
+                        with Container(id="ui-editor-buttons"):
+                             yield Button("Apply Changes", variant="primary", id="save_ui")
 
-                with Container(id="ui-editor-buttons"):
-                    yield Button("Save UI", variant="primary", id="save_ui")
-                    yield Button("Reset UI", variant="default", id="reset_ui")
+                    yield ScrollableContainer(id="live-view-container")
+
+            with TabPane("Config Editor", id="config_editor_tab"):
+                with ScrollableContainer(id="config-editor-container"):
+                    pass  # Populated dynamically
+                with Container(id="config-editor-buttons"):
+                    yield Button("Save Changes", variant="success", id="save_config")
+                    yield Button("Restore Defaults", variant="error", id="restore_config")
 
             with TabPane("Log Exporter", id="log_exporter_tab"):
                 with Container(id="log-exporter-container"):
@@ -242,7 +284,6 @@ class TUIDashboardApp(App):
                     with RadioSet(id="export_format"):
                         yield RadioButton("JSON", value=True)
                         yield RadioButton("CSV")
-                        yield RadioButton("PDF")
                         yield RadioButton("Markdown")
                     yield Input(placeholder="/path/to/export.log", id="export_path")
                     yield Button("Export", variant="primary", id="export_logs")
@@ -268,7 +309,33 @@ class TUIDashboardApp(App):
                     new_active_groups.append(group_id)
 
             self.active_groups = new_active_groups
-            self.query_one(TabbedContent).active = "live_view_tab"
+
+        elif event.button.id == "save_config":
+            self.save_config_from_ui()
+
+        elif event.button.id == "restore_config":
+            self.load_config_to_ui()
+            self.notify("Restored unsaved changes from config file.", severity="information")
+
+
+    def on_switch_mouse_over(self, event: Switch.MouseOver) -> None:
+        """Update description when hovering over a switch."""
+        group_id = event.control.id.replace("toggle_", "")
+        if group_id in self.available_groups:
+            description = self.available_groups[group_id]["desc"]
+            self.query_one("#ui-editor-description", Static).update(description)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        """Handle button press events."""
+        if event.button.id == "save_ui":
+            new_active_groups = []
+            switches = self.query(Switch)
+            for switch in switches:
+                if switch.value:
+                    group_id = switch.id.replace("toggle_", "")
+                    new_active_groups.append(group_id)
+
+            self.active_groups = new_active_groups
 
         elif event.button.id == "save_config":
             self.save_config_from_ui()
@@ -279,14 +346,6 @@ class TUIDashboardApp(App):
 
         elif event.button.id == "export_logs":
             self.export_logs()
-
-
-    def on_switch_mouse_over(self, event: Switch.MouseOver) -> None:
-        """Update description when hovering over a switch."""
-        group_id = event.control.id.replace("toggle_", "")
-        if group_id in self.available_groups:
-            description = self.available_groups[group_id]["desc"]
-            self.query_one("#ui-editor-description", Static).update(description)
 
     # --- Log Exporting ---
 

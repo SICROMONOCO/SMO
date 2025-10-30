@@ -20,12 +20,13 @@ class DiskUsageGroup(MetricGroup):
         table.add_column()
 
         # --- Main Disk Stats ---
-        main_disk_key = next((k for k, v in disk_data.items() if v.get("mountpoint") == "/"), None)
+        partitions = disk_data.get("partitions", {})
+        main_disk_key = next((k for k, v in partitions.items() if v.get("mountpoint") == "/"), None)
         if not main_disk_key:
-             main_disk_key = next((k for k, v in disk_data.items() if "C_" in k), None)
+             main_disk_key = next((k for k, v in partitions.items() if "C:\\" in k), None)
 
-        if main_disk_key and isinstance(disk_data.get(main_disk_key), dict):
-            main_disk_metrics = disk_data[main_disk_key].get("metrics", {})
+        if main_disk_key and isinstance(partitions.get(main_disk_key), dict):
+            main_disk_metrics = partitions[main_disk_key].get("metrics", {})
             total = main_disk_metrics.get("total_bytes", {}).get("human_readable", "N/A")
             used = main_disk_metrics.get("used_bytes", {}).get("human_readable", "N/A")
             free = main_disk_metrics.get("free_bytes", {}).get("human_readable", "N/A")

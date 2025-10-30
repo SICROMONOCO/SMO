@@ -21,7 +21,7 @@ class MemoryGroup(MetricGroup):
         table.add_column()
 
         # --- Virtual Memory ---
-        vmem = mem_data.get("virtual_memory", {}).get("virtual_memory", {})
+        vmem = mem_data.get("virtual_memory", {})
         if vmem:
             vmem_pct = vmem.get("percent", {}).get("value", 0)
             vmem_bar = ProgressBar(total=100, completed=vmem_pct, width=30)
@@ -33,7 +33,7 @@ class MemoryGroup(MetricGroup):
             table.add_row("", f"Total: {total}, Used: {used}, Available: {available}")
 
         # --- Swap Memory ---
-        swap = mem_data.get("swap_memory", {}).get("swap_memory", {})
+        swap = mem_data.get("swap_memory", {})
         if swap:
             swap_pct = swap.get("percent", {}).get("value", 0)
             swap_bar = ProgressBar(total=100, completed=swap_pct, width=30)

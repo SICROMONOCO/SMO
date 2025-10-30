@@ -4,3 +4,4 @@ textual
 rich
 pytest
 pytest-asyncio
+flask

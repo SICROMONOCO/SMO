@@ -28,8 +28,8 @@ class CPUStatsGroup(MetricGroup):
         table.add_row("Average Load:", avg_load_text)
 
         # --- Per-Core Usage ---
-        per_core = cpu_data.get("per_core", {})
-        for i, (core_id, core_data) in enumerate(per_core.items()):
+        per_core_list = cpu_data.get("per_core", {}).get("cpu_percent", [])
+        for i, core_data in enumerate(per_core_list):
             usage = core_data.get("value", 0)
             bar = ProgressBar(total=100, completed=usage, width=30)
             table.add_row(f"Core {i} Usage:", bar)

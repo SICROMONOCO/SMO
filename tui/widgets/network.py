@@ -20,7 +20,7 @@ class NetworkIOGroup(MetricGroup):
         table.add_column()
 
         # --- I/O Counters ---
-        io_counters = net_data.get("io_counters", {}).get("metrics", {})
+        io_counters = net_data.get("io_counters", {})
         if io_counters:
             bytes_sent = io_counters.get("bytes_sent", {}).get("human_readable", "N/A")
             bytes_recv = io_counters.get("bytes_recv", {}).get("human_readable", "N/A")
