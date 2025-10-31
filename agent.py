@@ -37,7 +37,12 @@ DEFAULT_CONFIG = {
     "logging": {"format": "json"},
     "agent": {"snapshot_interval": 2},
     "display": {"show_snapshot_info": True},
-    "alerts": {"cpu_percent": 90, "memory_percent": 90, "disk_usage": 90, "network_bytes_sent": 1000000}
+    "alerts": {
+        "cpu_percent": 80,         # Alert when CPU usage > 80%
+        "memory_percent": 85,      # Alert when memory usage > 85%
+        "disk_usage": 90,          # Alert when disk usage > 90%
+        "network_bytes_sent": 1000000  # Alert when network traffic > 1MB/s
+    }
 }
 
 

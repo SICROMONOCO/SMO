@@ -1,0 +1,16 @@
+agent:
+  snapshot_interval: 1
+display:
+  show_snapshot_info: true
+logging:
+  format: json
+refresh:
+  cpu: 1
+  disk: 5
+  memory: 2
+  network: 2
+alerts:
+  cpu_percent: 2
+  memory_percent: 2
+  disk_usage: 2
+  network_bytes_sent: 5

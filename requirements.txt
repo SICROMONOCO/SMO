@@ -1,2 +1,7 @@
 psutil
 pyyaml
+textual
+rich
+pytest
+pytest-asyncio
+flask
