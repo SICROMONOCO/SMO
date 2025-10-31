@@ -28,7 +28,7 @@ class CPUStatsGroup(MetricGroup):
         table.add_row("Average Load:", avg_load_text)
 
         # --- Per-Core Usage ---
-        per_core_list = cpu_data.get("per_core", {}).get("cpu_percent", [])
+        per_core_list = cpu_data.get("per_core", {}).get("value", [])
         for i, core_data in enumerate(per_core_list):
             usage = core_data.get("value", 0)
             bar = ProgressBar(total=100, completed=usage, width=30)
@@ -36,6 +36,11 @@ class CPUStatsGroup(MetricGroup):
 
         # --- Frequency and Load Average ---
         freq = cpu_data.get("frequency", {}).get("current_freq", {}).get("value", 0)
+        #get max frequency for progress bar 
+        
+        getmaxfreq = cpu_data.get("frequency", {}).get("max_freq", {}).get("value", 4000)
+        
+        bar = ProgressBar(total=getmaxfreq, completed=freq, width=30)
         table.add_row("Frequency:", f"{freq:.2f} MHz")
 
         load_avg = cpu_data.get("load", {}).get("load_average", {}).get("value", {})

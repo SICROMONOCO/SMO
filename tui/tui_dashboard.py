@@ -24,7 +24,6 @@ from textual.widgets import (
     Input,
     Label,
     Static,
-    Switch,
     TabbedContent,
     TabPane,
     RadioButton,
@@ -92,10 +91,6 @@ MetricGroup > Label {
     margin-top: 1;
 }
 
-.alert-highlight {
-    background: #880000;
-    color: white;
-}
 """
 
 # ----------------------------------------------------------------------------
@@ -119,9 +114,8 @@ class TUIDashboardApp(App):
         "system_info": {"class": SystemInfoGroup, "name": "System Info", "desc": "Provides general system information like OS and hostname."},
     }
 
-    active_groups: reactive[list[str]] = reactive(
-        ["cpu_stats", "memory"]
-    )
+    # We no longer support toggling groups on/off dynamically via the UI.
+    # All available groups are mounted into the live view by default.
 
     latest_metrics: reactive[dict] = reactive({})
 
@@ -207,30 +201,17 @@ class TUIDashboardApp(App):
 
     def watch_latest_metrics(self, old_metrics: dict, new_metrics: dict) -> None:
         """Called when self.latest_metrics changes. Passes data to visible widgets."""
-        for group_id in self.active_groups:
+        # Update all mounted MetricGroup widgets. This avoids relying on
+        # in-UI toggle state which was removed.
+        for widget in self.query(MetricGroup):
             try:
-                widget = self.query_one(f"#{group_id}", MetricGroup)
                 if hasattr(widget, "update_data"):
                     widget.update_data(new_metrics)
-            except NoMatches:
+            except Exception:
+                # be resilient to individual widget errors
                 continue
 
-    def watch_active_groups(self, old_groups: list[str], new_groups: list[str]) -> None:
-        """Called when self.active_groups changes. Updates the Live View tab."""
-        try:
-            live_view = self.query_one("#live-view-container", ScrollableContainer)
-        except NoMatches:
-            return
-
-        live_view.remove_children()
-
-        for group_id in new_groups:
-            if group_id in self.available_groups:
-                group_info = self.available_groups[group_id]
-                new_widget = group_info["class"](title=group_info["name"], id=group_id)
-                live_view.mount(new_widget)
-
-        self.sub_title = f"Displaying {len(new_groups)} metric groups"
+    # watch_active_groups removed: group toggling via UI is no longer supported.
 
     def _create_config_widgets(self, config_data: dict, parent_key: str = "") -> list:
         """Recursively create widgets for the config editor."""
@@ -255,21 +236,9 @@ class TUIDashboardApp(App):
     def compose(self) -> ComposeResult:
         """Create the main layout and widgets for the app."""
         yield Header()
-
         with TabbedContent(initial="live_view_tab"):
             with TabPane("Live View", id="live_view_tab"):
-                with Horizontal(id="live-view-layout"):
-                    with VerticalScroll(id="live-view-sidebar"):
-                        yield Label("Toggle Metric Groups:")
-                        for group_id, info in self.available_groups.items():
-                            is_active = group_id in self.active_groups
-                            yield Switch(name=info["name"], value=is_active, id=f"toggle_{group_id}")
-                        yield Static("Hover over a switch to see its description.", id="ui-editor-description")
-
-                        with Container(id="ui-editor-buttons"):
-                             yield Button("Apply Changes", variant="primary", id="save_ui")
-
-                    yield ScrollableContainer(id="live-view-container")
+             yield ScrollableContainer(id="live-view-container")
 
             with TabPane("Config Editor", id="config_editor_tab"):
                 with ScrollableContainer(id="config-editor-container"):
@@ -295,57 +264,31 @@ class TUIDashboardApp(App):
         self.set_interval(2, self.update_metrics)
         self.load_config_to_ui()
         self.update_metrics()
-        self.watch_active_groups(None, self.active_groups)
+        # Mount all available metric groups into the live view by default.
+        try:
+            live_view = self.query_one("#live-view-container", ScrollableContainer)
+            for group_id, info in self.available_groups.items():
+                try:
+                    # avoid duplicate mounts if already present
+                    self.query_one(f"#{group_id}", MetricGroup)
+                except NoMatches:
+                    new_widget = info["class"](title=info["name"], id=group_id)
+                    live_view.mount(new_widget)
+        except NoMatches:
+            pass
 
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button press events."""
-        if event.button.id == "save_ui":
-            new_active_groups = []
-            switches = self.query(Switch)
-            for switch in switches:
-                if switch.value:
-                    group_id = switch.id.replace("toggle_", "")
-                    new_active_groups.append(group_id)
-
-            self.active_groups = new_active_groups
-
-        elif event.button.id == "save_config":
+        if event.button.id == "save_config":
             self.save_config_from_ui()
-
         elif event.button.id == "restore_config":
+            # Reload config from disk and update UI
             self.load_config_to_ui()
             self.notify("Restored unsaved changes from config file.", severity="information")
-
-
-    def on_switch_mouse_over(self, event: Switch.MouseOver) -> None:
-        """Update description when hovering over a switch."""
-        group_id = event.control.id.replace("toggle_", "")
-        if group_id in self.available_groups:
-            description = self.available_groups[group_id]["desc"]
-            self.query_one("#ui-editor-description", Static).update(description)
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        """Handle button press events."""
-        if event.button.id == "save_ui":
-            new_active_groups = []
-            switches = self.query(Switch)
-            for switch in switches:
-                if switch.value:
-                    group_id = switch.id.replace("toggle_", "")
-                    new_active_groups.append(group_id)
-
-            self.active_groups = new_active_groups
-
-        elif event.button.id == "save_config":
-            self.save_config_from_ui()
-
-        elif event.button.id == "restore_config":
-            self.load_config_to_ui()
-            self.notify("Restored unsaved changes from config file.", severity="information")
-
         elif event.button.id == "export_logs":
             self.export_logs()
+    # Switch-related handlers removed: toggling groups from the UI is no longer supported.
 
     # --- Log Exporting ---
 

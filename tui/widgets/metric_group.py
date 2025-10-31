@@ -12,4 +12,5 @@ class MetricGroup(Container):
     def compose(self) -> ComposeResult:
         """Renders the title of the metric group."""
         yield Label(self.title)
-        yield Container(id=f"content_{self.id}")
+        content_id = f"content_{self.id}" if self.id else None
+        yield Container(id=content_id)

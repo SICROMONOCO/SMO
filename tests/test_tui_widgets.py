@@ -11,6 +11,7 @@ class WidgetTestApp(App):
         yield self.widget
 
 @pytest.mark.asyncio
+
 async def test_cpu_stats_group_update_data_with_empty_metrics():
     """
     Test that the CPUStatsGroup widget can handle an update with empty metrics
