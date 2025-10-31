@@ -32,7 +32,7 @@ class MetricsLogger:
             if "timestamp" not in snapshot:
                 snapshot["timestamp"] = datetime.now().timestamp()
                 
-            with open(self.log_file, "a", encoding="utf-8") as f:
+            with open(self.log_file, "a", encoding="utf-8", buffering=1) as f:
                 f.write(json.dumps(snapshot, ensure_ascii=False) + "\n")
         except Exception:
             # Best-effort logging; don't fail the caller

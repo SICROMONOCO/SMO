@@ -1,5 +1,5 @@
 agent:
-  snapshot_interval: 1
+  snapshot_interval: 2
 display:
   show_snapshot_info: true
 logging:
@@ -11,6 +11,6 @@ refresh:
   network: 2
 alerts:
   cpu_percent: 2
-  memory_percent: 2
+  memory_percent: 20
   disk_usage: 2
   network_bytes_sent: 5
