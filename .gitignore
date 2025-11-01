@@ -40,4 +40,7 @@ config/*.secret.yaml
 htmlcov/
 pytest_cache/
 
+# SSH keys
+remote_ssh/
+
 orginized

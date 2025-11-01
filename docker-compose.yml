@@ -1,0 +1,67 @@
+version: "3.8"
+
+services:
+  smo-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: python3 agent.py
+    volumes:
+      - ./config:/app/config
+      - ./logs:/app/logs
+    environment:
+      - INFLUXDB_URL=http://smo-db:8086
+      - INFLUXDB_TOKEN=my-super-secret-token
+      - INFLUXDB_ORG=my-org
+      - INFLUXDB_BUCKET=smo-metrics
+    depends_on:
+      - smo-db
+
+  smo-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: uvicorn web_dashboard:app --host 0.0.0.0 --port 5000
+    ports:
+      - "5678:5000"
+    volumes:
+      - ./logs:/app/logs
+    depends_on:
+      - smo-agent
+
+  smo-tui:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: python3 tui/tui_dashboard.py
+    stdin_open: true
+    tty: true
+    volumes:
+      - ./config:/app/config
+      - ./logs:/app/logs
+    depends_on:
+      - smo-agent
+
+  smo-db:
+    image: influxdb:2.7
+    volumes:
+      - influxdb_data:/var/lib/influxdb2
+    ports:
+      - "8086:8086"
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=my-user
+      - DOCKER_INFLUXDB_INIT_PASSWORD=my-password
+      - DOCKER_INFLUXDB_INIT_ORG=my-org
+      - DOCKER_INFLUXDB_INIT_BUCKET=smo-metrics
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=my-super-secret-token
+
+  smo-remote:
+    build:
+      context: .
+      dockerfile: Dockerfile.remote
+    ports:
+      - "2222:22"
+
+volumes:
+  influxdb_data:

@@ -4,4 +4,8 @@ textual
 rich
 pytest
 pytest-asyncio
-flask
+gunicorn
+fastapi
+uvicorn
+websockets
+influxdb-client
