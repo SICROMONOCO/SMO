@@ -1,5 +1,5 @@
 # Use a minimal base image
-FROM debian:bullseye-slim
+FROM mirror.gcr.io/debian:bullseye-slim
 
 # Install OpenSSH Server
 RUN apt-get update && apt-get install -y openssh-server \
@@ -13,7 +13,8 @@ RUN mkdir -p /home/remoteuser/.ssh && \
     touch /home/remoteuser/.ssh/authorized_keys
 
 # Add the public key to authorized_keys
-RUN echo "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDURvV4csj3Pr2wfAX4FG6KAk+jkhUwwm5oDpvPvHi3QS2JqeC2AZqKZTs9hJORXkzhyGufVZ831/5RAdJA377PELTe2cn6nZ3l1YW4JH9HBbCRghqgspMS0Tf60baGx9T73G6Khd0ays1OhPs9xuerKjF+GJJvhLsmLMcDpVcZZli7stBR08D43YEPNThcmBMRmdXLr3OQlqs2L7Gncumw95sqIK9evNGZA7ecvPKpOsjyIPJPX4gZ7G0z4D+JCvedhD7xYy+8x1srwQp+A9Nk2dA5rjD8zlqJcPuF1k3m6fK4Rm1CvtJDoon4QAq+8dcBrYnWrhSJE1DaLxjRjm3N3p4tetn/GQCQcYoeKKZo//fHEUPsQu6HFvLvoTtXjHZKN3urOWz8beholDQpAFC7mz2FXaEvHNLvsl7fEBrtuzQU4TPPnXcBGba1vm5HaUpSsJ9hPhwXlbmwGWtYgCu8fVKebJR79RiKpO+kvYtP6BTl4mI8wyRbguuIflB5pdf09VY+g+iQcu0dxnfBehPCxmQtqMkXDMi2phG51K8OmLJ+ovxru3/OV2tyzGhC4ISvHw7jK/E6e7DhT87FC0hLqI23l6ieEeEc5QpV2WUznMheRVqTXykJncNy6L2xzzyu2TprwPpFBZzbh1UglaBWMDDWKYA8R7MnIJjS7FbFsw== jules@devbox" > /home/remoteuser/.ssh/authorized_keys
+ARG PUBLIC_KEY
+RUN if [ -n "${PUBLIC_KEY}" ]; then echo "${PUBLIC_KEY}" > /home/remoteuser/.ssh/authorized_keys; fi
 
 # Set correct permissions
 RUN chown -R remoteuser:remoteuser /home/remoteuser/.ssh && \
@@ -22,6 +23,8 @@ RUN chown -R remoteuser:remoteuser /home/remoteuser/.ssh && \
 
 # Create host keys
 RUN ssh-keygen -A
+
+RUN mkdir -p /run/sshd
 
 # Expose the SSH port
 EXPOSE 22

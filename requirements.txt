@@ -8,4 +8,4 @@ gunicorn
 fastapi
 uvicorn
 websockets
-influxdb-client
+influxdb-client[async]

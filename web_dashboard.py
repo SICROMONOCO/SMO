@@ -3,8 +3,7 @@ from fastapi.responses import HTMLResponse
 import asyncio
 import json
 import os
-from influxdb_client import InfluxDBClient
-from influxdb_client.client.flux_async import FluxQueryOptions
+from influxdb_client.client.influxdb_client_async import InfluxDBClientAsync
 
 app = FastAPI()
 
@@ -42,7 +41,7 @@ async def websocket_endpoint(websocket: WebSocket):
     org = os.environ.get("INFLUXDB_ORG", "my-org")
     bucket = os.environ.get("INFLUXDB_BUCKET", "smo-metrics")
 
-    async with InfluxDBClient(url=url, token=token, org=org) as client:
+    async with InfluxDBClientAsync(url=url, token=token, org=org) as client:
         query_api = client.query_api()
 
         while True:

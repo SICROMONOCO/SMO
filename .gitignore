@@ -1,46 +1,4 @@
-# Python cache and build
-__pycache__/
-*.py[cod]
-*.egg-info/
-build/
-dist/
-
-# Virtual environments
-venv/
-env/
-.venv/
-
-# Logs and temp files
-logs/
-*.log
-*.tmp
-*.bak
-*.swp
-
-# System
-.DS_Store
-Thumbs.db
-
-# WSL and VSCode
-.vscode/
-.idea/
 
 # Docker
-*.pid
-*.sock
-.dockerignore
-
-# Environment configs
 .env
-config/*.local.json
-config/*.secret.yaml
-
-# Tests / coverage
-.coverage
-htmlcov/
-pytest_cache/
-
-# SSH keys
-remote_ssh/
-
-orginized
+remote_ssh/id_rsa

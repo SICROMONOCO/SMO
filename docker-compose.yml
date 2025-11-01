@@ -1,19 +1,17 @@
-version: "3.8"
-
 services:
   smo-agent:
     build:
       context: .
       dockerfile: Dockerfile
-    command: python3 agent.py
+    command: python3 agent.py run
     volumes:
       - ./config:/app/config
       - ./logs:/app/logs
     environment:
       - INFLUXDB_URL=http://smo-db:8086
-      - INFLUXDB_TOKEN=my-super-secret-token
-      - INFLUXDB_ORG=my-org
-      - INFLUXDB_BUCKET=smo-metrics
+      - INFLUXDB_TOKEN=${INFLUXDB_TOKEN}
+      - INFLUXDB_ORG=${DOCKER_INFLUXDB_INIT_ORG}
+      - INFLUXDB_BUCKET=${DOCKER_INFLUXDB_INIT_BUCKET}
     depends_on:
       - smo-db
 
@@ -21,7 +19,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    command: uvicorn web_dashboard:app --host 0.0.0.0 --port 5000
+    command: ["uvicorn", "web_dashboard:app", "--host", "0.0.0.0", "--port", "5000"]
     ports:
       - "5678:5000"
     volumes:
@@ -33,7 +31,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    command: python3 tui/tui_dashboard.py
+    command: ["python3", "-m", "tui.tui_dashboard"]
     stdin_open: true
     tty: true
     volumes:
@@ -43,23 +41,27 @@ services:
       - smo-agent
 
   smo-db:
-    image: influxdb:2.7
+    build:
+      context: .
+      dockerfile: Dockerfile.db
     volumes:
       - influxdb_data:/var/lib/influxdb2
     ports:
       - "8086:8086"
     environment:
       - DOCKER_INFLUXDB_INIT_MODE=setup
-      - DOCKER_INFLUXDB_INIT_USERNAME=my-user
-      - DOCKER_INFLUXDB_INIT_PASSWORD=my-password
-      - DOCKER_INFLUXDB_INIT_ORG=my-org
-      - DOCKER_INFLUXDB_INIT_BUCKET=smo-metrics
-      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=my-super-secret-token
+      - DOCKER_INFLUXDB_INIT_USERNAME=${DOCKER_INFLUXDB_INIT_USERNAME}
+      - DOCKER_INFLUXDB_INIT_PASSWORD=${DOCKER_INFLUXDB_INIT_PASSWORD}
+      - DOCKER_INFLUXDB_INIT_ORG=${DOCKER_INFLUXDB_INIT_ORG}
+      - DOCKER_INFLUXDB_INIT_BUCKET=${DOCKER_INFLUXDB_INIT_BUCKET}
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${DOCKER_INFLUXDB_INIT_ADMIN_TOKEN}
 
   smo-remote:
     build:
       context: .
       dockerfile: Dockerfile.remote
+      args:
+        - PUBLIC_KEY=ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQC2APj+qGk/9PtXFnM2z2VqkWA/71k+hZ6rUc1tASvC2CDS+kRMph14jGLFKo9fhnPNhEg6peENGhQ7ZZ/TuX9zZQ3kKjXM8/jsPAHaCPVf+FM3xOQBESp3mjsP5UExNhKVRilhRtjltYJ49/5xHssC80qC4QAwWUWIHmClGGDgyfTKpnBI+OJ+RBMQy2GUrIAvJhD0ow+TnA3qrnCuLG2U476znWO+Ij1OOmq1Bv3k/apZCJxaJutXnGP0t2TowXzscJv6GsaKNM2iKQU2D4iNmFULEJcDSmOobI4Gm7dagC2UiTy6J057iN4b1+2tSSzreYEK1aSBDyIkBprXvlcrIvSaK6Eq/++k9sj78wxo/iuUofRHow119o1YkrP9geIcE4x3W6pYp3aSDNXubxD94X7ejBc46PgrlWIAwPKErdmp/ZE/LtwH91SMSmmPT63/6FXnUxCmjqyod6IkAeTLSzLS5HS0F/nTyY2ulEML+CBzmrz6lSoTq1lqbVnUe8VQ4EB/thUrIBQhioJPgq4PDrRmddc+2CuBOTlvp+XnG5Mc6aEFZGA9rei/h5vohnkH5oxHstxRFms5ssnsnX+3SP79FAcPcFEntT5j0jHBXw+uGqbOhzt6LrnwZPfXofcARby81TjAldwIKuYsFa0rxToNY29tSsedpRPSdQgCSw== jules@devbox
     ports:
       - "2222:22"
 
