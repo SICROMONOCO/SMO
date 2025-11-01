@@ -1,0 +1,29 @@
+[Unit]
+Description=SMO (System Monitoring Observer) Agent
+Documentation=file:///home/nosp/SMO/USAGE.md
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=nosp
+Group=XIO
+WorkingDirectory=/home/nosp/SMO
+ExecStart=/usr/bin/python3 /home/nosp/SMO/agent.py run
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=smo-agent
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=false
+
+# Resource limits (optional, adjust as needed)
+# LimitCPU=infinity
+# LimitMEMLOCK=infinity
+
+[Install]
+WantedBy=multi-user.target
+

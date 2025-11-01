@@ -51,7 +51,7 @@ def evaluate_alerts(snapshot: dict, config: dict) -> list:
         .get("percent", {})
         .get("value")
     )
-    logging.debug(f"Memory value: {mem_val}, Threshold: {thresholds.get('memory_percent')}")
+    logging.debug(f"[dim]Memory value: {mem_val}, Threshold: {thresholds.get('memory_percent')}[/]")
     if mem_val is not None and "memory_percent" in thresholds:
         if check_threshold(mem_val, thresholds["memory_percent"], "above"):
             alert = {
@@ -63,7 +63,7 @@ def evaluate_alerts(snapshot: dict, config: dict) -> list:
                 "message": f"Memory usage {mem_val}% > {thresholds['memory_percent']}%"
             }
             alerts.append(alert)
-            logging.info(f"Added memory alert: {alert}")
+            logging.debug(f"[dim]Added memory alert: {alert}[/]")
 
     # Disk usage
     for dev, part in snapshot.get("disk", {}).items():
@@ -146,19 +146,22 @@ def process_alerts(snapshot: dict, config: dict, logger=None):
                 al.append(minimal)
         except Exception:
             # Do not allow attach failures to propagate
-            logging.exception("Failed to attach alert to snapshot for %s", metric)
+            logging.exception(f"[yellow]⚠[/] Failed to attach alert to snapshot for [cyan]{metric}[/]")
 
     # Log to console and attach minimal info to the specific metrics only
     if alerts:
         for alert in alerts:
-            msg = f"[{alert['level'].upper()}] {alert['message']}"
             level = alert.get("level", "warning").lower()
+            metric_name = alert.get("metric", "unknown")
+            message = alert.get("message", "")
+            
+            # Format messages with rich markup
             if level == "info":
-                logging.info(msg)
+                logging.info(f"[blue]ℹ[/] [cyan]{metric_name}[/]: {message}")
             elif level == "error":
-                logging.error(msg)
+                logging.error(f"[red]✗[/] [cyan]{metric_name}[/]: {message}")
             else:
-                logging.warning(msg)
+                logging.warning(f"[yellow]⚠[/] [cyan]{metric_name}[/]: {message}")
 
             _attach_alert(alert)
 

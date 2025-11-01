@@ -19,12 +19,21 @@ import signal
 import logging
 import argparse
 import yaml
+import subprocess
+import platform
 from logger import logger
 from updater import start_all
 from metrics import registry
 import psutil
 import rich
 import pathlib
+from rich.logging import RichHandler
+from rich import print as rprint
+from rich.console import Console
+from rich.pretty import Pretty
+
+# Central console for controlled, pretty printing
+console = Console(highlight=True, markup=True)
 
 # ---------------------------------------------------------------------------
 # Configuration Loader
@@ -36,7 +45,7 @@ DEFAULT_CONFIG = {
     "refresh": {"cpu": 2, "memory": 5, "disk": 10, "network": 5, "process": 2},
     "logging": {"format": "json"},
     "agent": {"snapshot_interval": 2},
-    "display": {"show_snapshot_info": True},
+    "display": {"show_snapshot_info": True, "pretty_max_depth": 2, "pretty_max_length": 1200},
     "alerts": {
         "cpu_percent": 80,         # Alert when CPU usage > 80%
         "memory_percent": 85,      # Alert when memory usage > 85%
@@ -58,22 +67,24 @@ def _deep_merge_dicts(base: dict, override: dict) -> dict:
 
 
 def load_config() -> dict:
-    print("🔍 CONFIG PATH:", CONFIG_PATH)
     """Load YAML config with deep merge fallback."""
+    rprint(f"[dim]🔍 Config path:[/] [cyan]{CONFIG_PATH}[/]")
     if not CONFIG_PATH.exists():
         CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
         with open(CONFIG_PATH, "w") as f:
             yaml.safe_dump(DEFAULT_CONFIG, f)
-        print(f"[CONFIG] Created default config at {CONFIG_PATH}")
+        rprint(f"[green]✓[/] Created default config at [cyan]{CONFIG_PATH}[/]")
         return DEFAULT_CONFIG
 
     try:
         with open(CONFIG_PATH, "r") as f:
             data = yaml.safe_load(f) or {}
         merged = _deep_merge_dicts(DEFAULT_CONFIG, data)
+        rprint(f"[green]✓[/] Loaded config from [cyan]{CONFIG_PATH}[/]")
         return merged
     except Exception as e:
-        print(f"[CONFIG] Failed to load config: {e}")
+        rprint(f"[red]✗[/] Failed to load config: [yellow]{e}[/]")
+        rprint(f"[yellow]⚠[/] Using default configuration")
         return DEFAULT_CONFIG
 
 
@@ -84,7 +95,7 @@ def load_config() -> dict:
 
 def setup_signal_handler(stop_event: threading.Event):
     def handle_signal(sig, frame):
-        print("\n⚠️  Received shutdown signal... stopping threads.")
+        rprint("\n[yellow]⚠[/] [bold yellow]Received shutdown signal... stopping threads.[/]")
         stop_event.set()
 
     signal.signal(signal.SIGINT, handle_signal)
@@ -96,7 +107,6 @@ def setup_signal_handler(stop_event: threading.Event):
 # ---------------------------------------------------------------------------
 
 from datetime import datetime
-from rich import print as rprint
 
 def _print_snapshot_info(snapshot: dict, active_alerts=None):
     ts = snapshot.get("timestamp", time.time())
@@ -115,9 +125,9 @@ def _print_snapshot_info(snapshot: dict, active_alerts=None):
     
     # For debugging
     if not process_data:
-        logging.warning("No process metrics available in snapshot")
+        logging.warning("[yellow]⚠[/] No process metrics available in snapshot")
     elif "error" in process_data:
-        logging.warning(f"Process metrics error: {process_data['error']}")
+        logging.warning(f"[yellow]⚠[/] Process metrics error: {process_data['error']}")
 
     # Format uptime nicely
     uptime_str = ""
@@ -160,13 +170,20 @@ def run_agent(config: dict, print_console: bool = False):
     refresh_intervals = config.get("refresh", {})
     snapshot_interval = config.get("agent", {}).get("snapshot_interval", 2)
 
+    # Configure logging with Rich handler for unified formatting
     logging.basicConfig(
         level=logging.INFO,
-        format="[%(asctime)s] [%(levelname)s] %(message)s",
-        datefmt="%H:%M:%S"
+        format="%(message)s",
+        datefmt="[%X]",
+        handlers=[RichHandler(
+            rich_tracebacks=True,
+            show_path=False,
+            show_time=True,
+            markup=True
+        )]
     )
 
-    logging.info("🚀 Starting SMO Agent...")
+    rprint("[bold green]🚀 Starting SMO Agent...[/]")
     start_all(intervals=refresh_intervals, stop_event=stop_event)
 
     try:
@@ -180,12 +197,6 @@ def run_agent(config: dict, print_console: bool = False):
             active_alerts = process_alerts(snapshot, config)  # Don't pass logger to avoid duplicate logging
             if active_alerts:
                 snapshot["alerts"] = active_alerts
-                # Print alerts in a more formatted way
-                rprint("\n[bold red]═══════════════ ACTIVE ALERTS ═══════════════[/]")
-                for alert in active_alerts:
-                    level_color = "yellow" if alert["level"] == "warning" else "red" if alert["level"] == "error" else "blue"
-                    rprint(f"[bold {level_color}]⚠️  {alert['metric']}:[/] {alert['message']}")
-                rprint("[bold red]═══════════════════════════════════════[/]\n")
 
             # Persist the complete snapshot with alerts
             logger.log(snapshot)
@@ -194,11 +205,18 @@ def run_agent(config: dict, print_console: bool = False):
             if config.get("display", {}).get("show_snapshot_info", True):
                 _print_snapshot_info(snapshot)
 
+            # If user asked for a printed snapshot in the console, print a truncated
+            # pretty representation so the terminal doesn't get flooded.
+            if print_console:
+                depth = config.get("display", {}).get("pretty_max_depth", 2)
+                max_len = config.get("display", {}).get("pretty_max_length", 1200)
+                console.print(Pretty(snapshot, max_depth=depth, max_string=max_len))
+
             time.sleep(snapshot_interval)
     except Exception:
-        logging.exception("Agent loop crashed unexpectedly.")
+        logging.exception("[red]✗[/] Agent loop crashed unexpectedly.")
     finally:
-        logging.info("🧩 SMO Agent stopped cleanly.")
+        rprint("[bold blue]🧩[/] [blue]SMO Agent stopped cleanly.[/]")
     
 
 
@@ -207,9 +225,99 @@ def run_agent(config: dict, print_console: bool = False):
 # CLI Interface
 # ---------------------------------------------------------------------------
 
+def open_log_file():
+    """Open the log file with the system's default editor or a pager."""
+    log_file = PROJECT_ROOT / "logs" / "smo_metrics.jsonl"
+    
+    if not log_file.exists():
+        rprint(f"[red]✗[/] Log file not found: [cyan]{log_file}[/]")
+        rprint("[yellow]⚠[/] Run 'smo run' first to generate logs.")
+        return 1
+    
+    rprint(f"[cyan]📂[/] Opening log file: [bold]{log_file}[/]")
+    
+    # Try to open with a reasonable editor/viewer
+    system = platform.system().lower()
+    
+    if system == "linux":
+        # Prefer pagers/readers for log files, then editors
+        # Try less first (best for log files), then other options
+        viewers = ["less", "more", "cat"]
+        editors = ["xdg-open", "gedit", "nano", "vim"]
+        
+        # Try viewers first (non-interactive check by using which)
+        for viewer in viewers:
+            try:
+                result = subprocess.run(["which", viewer], capture_output=True, check=False)
+                if result.returncode == 0:
+                    rprint(f"[dim]Using {viewer} to view logs...[/]")
+                    subprocess.run([viewer, str(log_file)], check=False)
+                    return 0
+            except FileNotFoundError:
+                continue
+        
+        # Try editors as fallback
+        for editor in editors:
+            try:
+                result = subprocess.run(["which", editor], capture_output=True, check=False)
+                if result.returncode == 0:
+                    rprint(f"[dim]Using {editor} to open logs...[/]")
+                    subprocess.run([editor, str(log_file)], check=False)
+                    return 0
+            except FileNotFoundError:
+                continue
+        
+        # Fallback: just show file location and content preview
+        rprint(f"[yellow]⚠[/] Could not find a suitable viewer. File location: [cyan]{log_file}[/]")
+        rprint(f"[dim]File size: {log_file.stat().st_size} bytes[/]")
+        rprint("[dim]You can open it manually with: less, nano, vim, or gedit[/]")
+        # Show last few lines as preview
+        try:
+            with open(log_file, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+                if lines:
+                    rprint("\n[dim]Last 3 log entries (preview):[/]")
+                    for line in lines[-3:]:
+                        rprint(f"[dim]{line.strip()[:100]}...[/]")
+        except Exception:
+            pass
+        return 1
+    elif system == "darwin":  # macOS
+        subprocess.run(["open", str(log_file)], check=False)
+        return 0
+    elif system == "windows":
+        subprocess.run(["start", str(log_file)], shell=True, check=False)
+        return 0
+    else:
+        rprint(f"[yellow]⚠[/] Unsupported platform. Log file location: [cyan]{log_file}[/]")
+        return 1
+
+
+def run_tui():
+    """Launch the TUI dashboard."""
+    rprint("[bold cyan]🖥️[/] [cyan]Launching TUI Dashboard...[/]")
+    try:
+        # Import and run the TUI
+        from tui.tui_dashboard import TUIDashboardApp
+        app = TUIDashboardApp()
+        app.run()
+    except ImportError as e:
+        rprint(f"[red]✗[/] Failed to import TUI: [yellow]{e}[/]")
+        rprint("[yellow]⚠[/] Make sure all dependencies are installed.")
+        return 1
+    except KeyboardInterrupt:
+        rprint("\n[yellow]⚠[/] TUI interrupted by user.")
+        return 0
+    except Exception as e:
+        rprint(f"[red]✗[/] Failed to run TUI: [yellow]{e}[/]")
+        logging.exception("TUI error")
+        return 1
+
+
 def main():
     parser = argparse.ArgumentParser(prog="smo", description="System Monitoring Observer (SMO) Agent")
-    parser.add_argument("command", choices=["run", "once"], help="run = continuous mode, once = single snapshot")
+    parser.add_argument("command", choices=["run", "once", "logs", "tui"], 
+                       help="run = continuous mode, once = single snapshot, logs = view log file, tui = launch TUI dashboard")
     parser.add_argument("--print", dest="print", action="store_true", help="print snapshots to console in run mode")
     args = parser.parse_args()
 
@@ -218,11 +326,18 @@ def main():
     if args.command == "run":
         run_agent(config, print_console=args.print)
     elif args.command == "once":
-        from rich import print as rprint
+        rprint("[bold cyan]📸[/] Gathering snapshot...")
         snapshot = registry.gather_all()
-        rprint(snapshot)
+        # Print a truncated pretty snapshot (don't dump raw huge dicts)
+        depth = config.get("display", {}).get("pretty_max_depth", 2)
+        max_len = config.get("display", {}).get("pretty_max_length", 1200)
+        console.print(Pretty(snapshot, max_depth=depth, max_string=max_len))
         logger.log(snapshot)
-        print("✅ Snapshot saved to logs/.")
+        rprint("[green]✓[/] Snapshot saved to logs/.")
+    elif args.command == "logs":
+        sys.exit(open_log_file())
+    elif args.command == "tui":
+        sys.exit(run_tui())
 
 
 if __name__ == "__main__":

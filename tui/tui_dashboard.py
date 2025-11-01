@@ -42,10 +42,18 @@ from .widgets.memory import MemoryGroup
 from .widgets.disk import DiskUsageGroup
 from .widgets.network import NetworkIOGroup
 from .widgets.system_info import SystemInfoGroup
+from .widgets.process import ProcessGroup
 from .widgets.alerts import AlertsGroup
 
 # Set up logging
 logger = logging.getLogger(__name__)
+
+# Import default configuration from the agent so we can truly restore defaults
+try:
+    # agent.py sits at the project root; available when running `python -m tui.tui_dashboard`
+    from agent import DEFAULT_CONFIG as AGENT_DEFAULT_CONFIG
+except Exception:  # pragma: no cover - defensive guard if import path changes
+    AGENT_DEFAULT_CONFIG = {}
 
 
 # ----------------------------------------------------------------------------
@@ -117,6 +125,11 @@ MetricGroup {
 }
 
 #network_io {
+    min-height: 6;
+    max-height: 25vh;
+}
+
+#process {
     min-height: 6;
     max-height: 25vh;
 }
@@ -224,6 +237,7 @@ class TUIDashboardApp(App):
         "disk_usage": {"class": DiskUsageGroup, "name": "Disk Usage", "desc": "Shows disk space usage for mounted partitions."},
         "network_io": {"class": NetworkIOGroup, "name": "Network I/O", "desc": "Displays current network traffic (upload/download)."},
         "system_info": {"class": SystemInfoGroup, "name": "System Info", "desc": "Provides general system information like OS and hostname."},
+        "process": {"class": ProcessGroup, "name": "Process", "desc": "Displays SMO agent process metrics (PID, uptime, CPU, memory, I/O, threads)."},
     }
 
 
@@ -240,13 +254,39 @@ class TUIDashboardApp(App):
         """Load config from YAML and dynamically populate the config editor."""
         try:
             container = self.query_one("#config-editor-container")
-            container.remove_children()
+
+            # Robustly clear existing editor content to avoid duplicate IDs
+            try:
+                # Preferred: remove all current children explicitly
+                for child in list(container.children):
+                    try:
+                        child.remove()
+                    except Exception:
+                        # Best-effort removal; continue clearing others
+                        pass
+            except Exception:
+                # Fallback to container.remove_children if available
+                try:
+                    container.remove_children()  # type: ignore[attr-defined]
+                except Exception:
+                    # As a last resort, attempt to remove any known config inputs globally
+                    for w in self.query("Input"):
+                        if getattr(w, "id", "").startswith("config-input-"):
+                            try:
+                                w.remove()
+                            except Exception:
+                                pass
             with open(self.CONFIG_PATH, "r", encoding="utf-8") as f:
                 config = yaml.safe_load(f)
             if config is None:
                 config = {}
             widgets = self._create_config_widgets(config)
-            container.mount(*widgets)
+            # Mount after a refresh tick to ensure removals are fully processed
+            try:
+                self.call_after_refresh(lambda: container.mount(*widgets))  # type: ignore[attr-defined]
+            except Exception:
+                # Fallback: schedule on next loop tick
+                self.set_timer(0, lambda: container.mount(*widgets))
         except NoMatches:
             self.notify("Config editor container not found.", severity="error")
             logger.error("Config editor container not found")
@@ -474,9 +514,8 @@ class TUIDashboardApp(App):
         if event.button.id == "save_config":
             self.save_config_from_ui()
         elif event.button.id == "restore_config":
-            # Reload config from disk and update UI
-            self.load_config_to_ui()
-            self.notify("Restored unsaved changes from config file.", severity="information")
+            # Overwrite config file with project defaults and refresh the editor
+            self.restore_config_to_defaults()
         elif event.button.id == "export_logs":
             self.export_logs()
     # Switch-related handlers removed: toggling groups from the UI is no longer supported.
@@ -570,6 +609,50 @@ class TUIDashboardApp(App):
         except Exception as e:
             self.notify(f"Failed to export logs: {e}", severity="error")
             logger.error(f"Failed to export logs: {e}", exc_info=True)
+
+    # --- Config Defaults Restore ---
+
+    def restore_config_to_defaults(self) -> None:
+        """Restore configuration file to the project's default values from agent.py."""
+        try:
+            if not AGENT_DEFAULT_CONFIG:
+                # If import failed above, inform the user gracefully
+                self.notify("Default config not available (agent import failed).", severity="error")
+                logger.error("AGENT_DEFAULT_CONFIG is empty; unable to restore defaults.")
+                return
+
+            # Ensure config folder exists
+            self.CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+            # Backup current config if present
+            try:
+                if self.CONFIG_PATH.exists():
+                    backup_path = self.CONFIG_PATH.with_suffix(self.CONFIG_PATH.suffix + ".bak")
+                    content = self.CONFIG_PATH.read_text(encoding="utf-8")
+                    backup_path.write_text(content, encoding="utf-8")
+                    logger.info(f"Backed up existing config to {backup_path}")
+            except Exception as be:
+                # Non-fatal; proceed but log the backup failure
+                logger.warning(f"Failed to backup existing config: {be}")
+
+            # Overwrite with defaults from agent
+            with open(self.CONFIG_PATH, "w", encoding="utf-8") as f:
+                yaml.safe_dump(AGENT_DEFAULT_CONFIG, f, default_flow_style=False, sort_keys=False)
+
+            # Refresh UI inputs to reflect restored defaults
+            self.load_config_to_ui()
+            self.notify("Configuration restored to defaults.", severity="information")
+            logger.info("Configuration restored to defaults from agent.DEFAULT_CONFIG")
+
+        except IOError as e:
+            self.notify(f"File error while restoring defaults: {e}", severity="error")
+            logger.error(f"File error while restoring defaults: {e}")
+        except yaml.YAMLError as e:
+            self.notify(f"YAML error while writing defaults: {e}", severity="error")
+            logger.error(f"YAML error while writing defaults: {e}")
+        except Exception as e:
+            self.notify(f"Failed to restore defaults: {e}", severity="error")
+            logger.error(f"Failed to restore defaults: {e}", exc_info=True)
 
 # ----------------------------------------------------------------------------
 # 3. RUN THE APP
