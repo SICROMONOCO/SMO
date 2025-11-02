@@ -72,6 +72,16 @@ services:
       dockerfile: Dockerfile.remote
     ports:
       - "2222:22"
+    volumes:
+      - ./:/app:rw
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      - INFLUXDB_URL=${INFLUXDB_URL}
+      - INFLUXDB_TOKEN=${INFLUXDB_TOKEN}
+      - INFLUXDB_ORG=${INFLUXDB_ORG}
+      - INFLUXDB_BUCKET=${INFLUXDB_BUCKET}
+    depends_on:
+      - smo-agent
 
 volumes:
   influxdb_data:

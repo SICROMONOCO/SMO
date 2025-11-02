@@ -1,32 +1,47 @@
 # Use a minimal base image
-FROM mirror.gcr.io/debian:bullseye-slim
+FROM mirror.gcr.io/python:3.11-slim
 
-# Install OpenSSH Server
-RUN apt-get update && apt-get install -y openssh-server \
+# Set the working directory
+WORKDIR /app
+
+# Install system dependencies: OpenSSH server and tmux
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends openssh-server tmux \
     && rm -rf /var/lib/apt/lists/*
 
 # Create a dedicated user for SSH access
-RUN useradd -ms /bin/bash remoteuser
+RUN useradd -m -d /home/remoteuser -s /bin/bash remoteuser
+
+# Copy requirements (if present) and install Python deps
+COPY requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt || true
+
+# Copy the application code into the image
+COPY . /app
+RUN chown -R remoteuser:remoteuser /app
 
 # Create the .ssh directory and authorized_keys file
 RUN mkdir -p /home/remoteuser/.ssh && \
     touch /home/remoteuser/.ssh/authorized_keys
 
-# Copy the public key from the repository into the authorized_keys file
+# Copy repository public key into authorized_keys (overwritten if present)
 COPY --chown=remoteuser:remoteuser remote_ssh/id_rsa.pub /home/remoteuser/.ssh/authorized_keys
 
-# Set correct permissions
+# Fix permissions for SSH
 RUN chown -R remoteuser:remoteuser /home/remoteuser/.ssh && \
     chmod 700 /home/remoteuser/.ssh && \
     chmod 600 /home/remoteuser/.ssh/authorized_keys
 
-# Create host keys
-RUN ssh-keygen -A
-
+# Create host keys and ssh runtime dir
+RUN ssh-keygen -A || true
 RUN mkdir -p /run/sshd
 
-# Expose the SSH port
+# Add entrypoint script (will start tmux session with the TUI and then start sshd)
+COPY docker/remote-entrypoint.sh /usr/local/bin/remote-entrypoint.sh
+RUN chmod +x /usr/local/bin/remote-entrypoint.sh
+
 EXPOSE 22
 
-# Start the SSH server
-CMD ["/usr/sbin/sshd", "-D"]
+USER root
+
+CMD ["/usr/local/bin/remote-entrypoint.sh"]

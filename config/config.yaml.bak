@@ -13,7 +13,7 @@ display:
   pretty_max_depth: 2
   pretty_max_length: 1200
 alerts:
-  cpu_percent: 80
+  cpu_percent: 5
   memory_percent: 85
-  disk_usage: 4
+  disk_usage: 90
   network_bytes_sent: 1000000

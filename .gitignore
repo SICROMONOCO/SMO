@@ -5,6 +5,7 @@ Thumbs.db
 __pycache__/
 *.py[cod]
 *$py.class
+.pytest_cache
 
 # C extensions
 *.so
@@ -56,8 +57,9 @@ logs/
 # Sensitive keys and SSH
 remote_ssh/id_rsa
 remote_ssh/*.pem
+
 remote_ssh/id_rsa.pub
-remote_ssh/id_rsa.pub
+
 # Coverage
 .coverage
 htmlcov/
@@ -69,3 +71,6 @@ coverage.xml
 *.pyd
 remote_ssh/id_rsa.pub
 remote_ssh/id_rsa.pub
+remote_ssh/id_rsa.pub
+*.pub
+
