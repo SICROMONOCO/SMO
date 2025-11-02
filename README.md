@@ -1,6 +1,32 @@
 # System Monitoring and Orchestration Tool
 
-This project is a comprehensive system monitoring tool with a Textual TUI, a web dashboard, and a remote monitoring agent. The entire application is containerized with Docker for easy deployment and development.
+This project is a comprehensive system monitoring tool with a Textual TUI, a web dashboard, and a remote monitoring agent.
+
+## Installation Options
+
+SMO can be deployed in two ways:
+
+### 1. Docker Installation (Recommended for most users)
+
+The entire application is containerized with Docker for easy deployment and development.
+
+**Quick Start:**
+```bash
+./setup.sh
+```
+
+See [CONTAINERIZATION.md](CONTAINERIZATION.md) for details.
+
+### 2. Standalone Installation (Direct host installation)
+
+Install SMO and InfluxDB directly on your Linux system without Docker.
+
+**Quick Start:**
+```bash
+sudo ./setup-standalone.sh
+```
+
+See [docs/STANDALONE_INSTALLATION.md](docs/STANDALONE_INSTALLATION.md) for details.
 
 ## Quick Start
 
@@ -125,6 +151,8 @@ docker-compose restart
 
 ## Documentation
 
-- 📖 [CONTAINERIZATION.md](CONTAINERIZATION.md) - Detailed containerization guide
+- 📖 [CONTAINERIZATION.md](CONTAINERIZATION.md) - Docker containerization guide
+- 🖥️ [STANDALONE_INSTALLATION.md](docs/STANDALONE_INSTALLATION.md) - Standalone (non-Docker) installation guide
 - 📘 [USAGE.md](USAGE.md) - Application usage and features
+- 🐳 [DOCKER_SETUP.md](docs/DOCKER_SETUP.md) - Docker installation guide
 - 🔧 Configuration files in `config/` directory
