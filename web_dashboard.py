@@ -352,8 +352,8 @@ html = """
                     
                     for (let key in perCore) {
                         if (key.includes('_usage') && coreCount < 8) {
-                            const match = key.match(/core_(\d+)_usage/);
-                            if (!match) continue; // Skip if pattern doesn't match
+                            const match = key.match(/^core_(\d+)_usage$/);
+                            if (!match) continue; // Skip if pattern doesn't match exactly
                             const coreNum = match[1];
                             const usage = perCore[key]?.value || 0;
                             coreGrid.push(`
@@ -604,13 +604,16 @@ html = """
                 container.innerHTML = html;
             }
             
+            // WebSocket configuration
+            const RECONNECT_DELAY_MS = 5000;
+            
             // Determine WebSocket protocol based on page protocol
             const wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
-            var ws = new WebSocket(wsProtocol + window.location.host + "/ws");
+            const ws = new WebSocket(wsProtocol + window.location.host + "/ws");
             
             ws.onmessage = function(event) {
                 try {
-                    var data = JSON.parse(event.data);
+                    const data = JSON.parse(event.data);
                     
                     if (data.error) {
                         console.error('Error from server:', data.error);
@@ -639,7 +642,7 @@ html = """
                 console.log('WebSocket connection closed');
                 setTimeout(() => {
                     location.reload();
-                }, 5000);
+                }, RECONNECT_DELAY_MS);
             };
         </script>
     </body>
