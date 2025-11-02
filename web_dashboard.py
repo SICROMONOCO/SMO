@@ -352,7 +352,7 @@ html = """
                     
                     for (let key in perCore) {
                         if (key.includes('_usage') && coreCount < 8) {
-                            const coreNum = key.match(/core_(\\d+)/)?.[1];
+                            const coreNum = key.match(/core_(\d+)/)?.[1];
                             const usage = perCore[key]?.value || 0;
                             coreGrid.push(`
                                 <div class="stat-item">
