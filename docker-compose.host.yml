@@ -1,0 +1,86 @@
+# docker-compose.host.yml
+# 
+# This compose file extends the base docker-compose.yml to enable HOST METRICS monitoring.
+# Use this when you want psutil to report actual host machine metrics instead of container metrics.
+#
+# USAGE:
+#   docker-compose -f docker-compose.yml -f docker-compose.host.yml up -d
+#
+# REQUIREMENTS:
+#   - Linux host (required for pid:host and /proc mounting)
+#   - Docker with privileged container support
+#
+# WHAT THIS DOES:
+#   - Shares host PID namespace so psutil sees all host processes
+#   - Mounts host /proc, /sys, /etc for real system metrics
+#   - Enables privileged mode for full host access
+#   - Uses host network mode for accurate network metrics
+#
+
+services:
+  smo-agent:
+    # Enable host-level monitoring
+    pid: "host"               # Share host PID namespace - psutil sees all host processes
+    network_mode: "host"      # Use host network - accurate network metrics
+    privileged: true          # Required for full host access
+    
+    # Mount host filesystems for real metrics
+    volumes:
+      - ./config:/app/config
+      - ./logs:/app/logs
+      - /proc:/host/proc:ro              # Host process info
+      - /sys:/host/sys:ro                # Host system info  
+      - /etc/os-release:/host/etc/os-release:ro  # Host OS info
+    
+    environment:
+      - INFLUXDB_URL=http://localhost:8086  # Use localhost since we're on host network
+      - INFLUXDB_TOKEN=${INFLUXDB_TOKEN}
+      - INFLUXDB_ORG=${DOCKER_INFLUXDB_INIT_ORG}
+      - INFLUXDB_BUCKET=${DOCKER_INFLUXDB_INIT_BUCKET}
+      - HOST_MONITOR=true
+      - HOST_PROC=/host/proc
+      - HOST_SYS=/host/sys
+    
+    # Remove depends_on since we're using host network
+    depends_on: []
+
+  smo-web:
+    # Web dashboard also needs host network to connect to agent
+    network_mode: "host"
+    
+    environment:
+      - INFLUXDB_URL=http://localhost:8086  # Use localhost since we're on host network
+      - INFLUXDB_TOKEN=${INFLUXDB_TOKEN}
+      - INFLUXDB_ORG=${INFLUXDB_ORG}
+      - INFLUXDB_BUCKET=${INFLUXDB_BUCKET}
+    
+    # Override ports since we're using host network
+    ports: []
+    
+    # Note: Web dashboard will be available at http://localhost:5000 (not 5678)
+    depends_on: []
+
+  smo-tui:
+    # TUI also benefits from host metrics
+    pid: "host"
+    privileged: true
+    
+    volumes:
+      - ./config:/app/config
+      - ./logs:/app/logs
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+    
+    environment:
+      - INFLUXDB_URL=http://smo-db:8086  # TUI can still use service name
+      - INFLUXDB_TOKEN=${INFLUXDB_TOKEN}
+      - INFLUXDB_ORG=${INFLUXDB_ORG}
+      - INFLUXDB_BUCKET=${INFLUXDB_BUCKET}
+      - HOST_MONITOR=true
+      - HOST_PROC=/host/proc
+      - HOST_SYS=/host/sys
+
+  # Database stays as-is (doesn't need host access)
+  smo-db:
+    # Keep database isolated with normal networking
+    network_mode: "bridge"

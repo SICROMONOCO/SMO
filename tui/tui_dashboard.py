@@ -541,7 +541,8 @@ class TUIDashboardApp(App):
                 self.notify("Export path cannot be empty.", severity="error")
                 return
 
-            export_path = Path(export_path_str)
+            # Expand user path (e.g., ~/logs) and resolve to absolute path
+            export_path = Path(export_path_str).expanduser().resolve()
             
             # Check if format is selected
             radio_set = self.query_one(RadioSet)

@@ -76,7 +76,16 @@ class MetricsLogger:
 
     def _snapshot_to_points(self, snapshot: Dict[str, Any]) -> List[Point]:
         points: List[Point] = []
-        timestamp = datetime.fromtimestamp(snapshot.get("timestamp"))
+        
+        # Ensure timestamp exists and is valid
+        timestamp_value = snapshot.get("timestamp")
+        if timestamp_value is None:
+            timestamp = datetime.now()
+        else:
+            try:
+                timestamp = datetime.fromtimestamp(timestamp_value)
+            except (ValueError, TypeError, OSError):
+                timestamp = datetime.now()
 
         for metric, data in snapshot.items():
             if metric in {"timestamp", "alerts"}:
@@ -88,7 +97,11 @@ class MetricsLogger:
 
             point = Point(metric).time(timestamp)
             for field_name, value in field_values.items():
-                point.field(field_name, value)
+                try:
+                    point.field(field_name, value)
+                except Exception:
+                    # Skip invalid fields
+                    continue
             points.append(point)
         return points
 
