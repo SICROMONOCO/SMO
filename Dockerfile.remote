@@ -1,0 +1,32 @@
+# Use a minimal base image
+FROM mirror.gcr.io/debian:bullseye-slim
+
+# Install OpenSSH Server
+RUN apt-get update && apt-get install -y openssh-server \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create a dedicated user for SSH access
+RUN useradd -ms /bin/bash remoteuser
+
+# Create the .ssh directory and authorized_keys file
+RUN mkdir -p /home/remoteuser/.ssh && \
+    touch /home/remoteuser/.ssh/authorized_keys
+
+# Copy the public key from the repository into the authorized_keys file
+COPY --chown=remoteuser:remoteuser remote_ssh/id_rsa.pub /home/remoteuser/.ssh/authorized_keys
+
+# Set correct permissions
+RUN chown -R remoteuser:remoteuser /home/remoteuser/.ssh && \
+    chmod 700 /home/remoteuser/.ssh && \
+    chmod 600 /home/remoteuser/.ssh/authorized_keys
+
+# Create host keys
+RUN ssh-keygen -A
+
+RUN mkdir -p /run/sshd
+
+# Expose the SSH port
+EXPOSE 22
+
+# Start the SSH server
+CMD ["/usr/sbin/sshd", "-D"]

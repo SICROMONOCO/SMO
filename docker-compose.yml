@@ -1,0 +1,77 @@
+services:
+  smo-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: python3 agent.py run
+    volumes:
+      - ./config:/app/config
+      - ./logs:/app/logs
+    environment:
+      - INFLUXDB_URL=http://smo-db:8086
+      - INFLUXDB_TOKEN=${INFLUXDB_TOKEN}
+      - INFLUXDB_ORG=${DOCKER_INFLUXDB_INIT_ORG}
+      - INFLUXDB_BUCKET=${DOCKER_INFLUXDB_INIT_BUCKET}
+    depends_on:
+      - smo-db
+
+  smo-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["uvicorn", "web_dashboard:app", "--host", "0.0.0.0", "--port", "5000"]
+    ports:
+      - "5678:5000"
+    volumes:
+      - ./logs:/app/logs
+    environment:
+      - INFLUXDB_URL=${INFLUXDB_URL}
+      - INFLUXDB_TOKEN=${INFLUXDB_TOKEN}
+      - INFLUXDB_ORG=${INFLUXDB_ORG}
+      - INFLUXDB_BUCKET=${INFLUXDB_BUCKET}
+    depends_on:
+      - smo-agent
+
+  smo-tui:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["python3", "-m", "tui.tui_dashboard"]
+    stdin_open: true
+    tty: true
+    volumes:
+      - ./config:/app/config
+      - ./logs:/app/logs
+    environment:
+      - INFLUXDB_URL=${INFLUXDB_URL}
+      - INFLUXDB_TOKEN=${INFLUXDB_TOKEN}
+      - INFLUXDB_ORG=${INFLUXDB_ORG}
+      - INFLUXDB_BUCKET=${INFLUXDB_BUCKET}
+    depends_on:
+      - smo-agent
+
+  smo-db:
+    build:
+      context: .
+      dockerfile: Dockerfile.db
+    volumes:
+      - influxdb_data:/var/lib/influxdb2
+    ports:
+      - "8086:8086"
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=${DOCKER_INFLUXDB_INIT_USERNAME}
+      - DOCKER_INFLUXDB_INIT_PASSWORD=${DOCKER_INFLUXDB_INIT_PASSWORD}
+      - DOCKER_INFLUXDB_INIT_ORG=${DOCKER_INFLUXDB_INIT_ORG}
+      - DOCKER_INFLUXDB_INIT_BUCKET=${DOCKER_INFLUXDB_INIT_BUCKET}
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${DOCKER_INFLUXDB_INIT_ADMIN_TOKEN}
+
+  smo-remote:
+    build:
+      context: .
+      dockerfile: Dockerfile.remote
+    ports:
+      - "2222:22"
+
+volumes:
+  influxdb_data:

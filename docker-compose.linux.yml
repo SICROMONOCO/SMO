@@ -1,0 +1,47 @@
+# docker-compose.linux.yml
+# Example compose snippets for running SMO agent against a Linux host/VM
+# Use these when deploying to a Linux VM where you want the agent to see
+# the VM's system resources (host /proc, host PID namespace).
+
+# Option 1: Host PID + host network (recommended when using psutil)
+# ---------------------------------------------------------------
+# This configuration lets psutil read the host kernel/proc data because the
+# container shares the host PID namespace. No changes to the agent code are
+# required. Uncomment and adapt when you deploy to a Linux VM.
+
+#smo-agent-host:
+#  image: your-image:latest
+#  # or build: context: . / dockerfile: Dockerfile
+#  pid: "host"
+#  network_mode: "host"
+#  privileged: true
+#  restart: unless-stopped
+#  environment:
+#    - HOST_MONITOR=${HOST_MONITOR:-true}
+#    - HOST_PROC=${HOST_PROC:-/proc}
+#  volumes:
+#    - ./config:/app/config:ro
+#    - ./logs:/app/logs
+
+# Option 2: Bind-mount host /proc into the container
+# --------------------------------------------------
+# This is explicit and read-only. Note: psutil does not support reading an
+# alternate procfs root, so this only works if you update the agent to use
+# ${HOST_PROC} paths instead of relying on psutil.
+
+#smo-agent-host-proc:
+#  image: your-image:latest
+#  restart: unless-stopped
+#  volumes:
+#    - ${HOST_PROC:-/proc}:/host_proc:ro
+#    - ./config:/app/config:ro
+#    - ./logs:/app/logs
+#  environment:
+#    - HOST_PROC=/host_proc
+#    - HOST_MONITOR=${HOST_MONITOR:-true}
+
+# Quick notes:
+# - Prefer the host PID approach (Option 1) when you rely on psutil.
+# - Avoid setting Docker resource limits (mem/cpu) if you intend to measure
+#   the full host resources.
+# - For production, reduce "privileged" to the minimum required capabilities.

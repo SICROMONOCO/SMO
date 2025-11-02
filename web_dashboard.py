@@ -1,65 +1,72 @@
+from fastapi import FastAPI, WebSocket
+from fastapi.responses import HTMLResponse
+import asyncio
 import json
-from pathlib import Path
-from flask import Flask, jsonify, render_template_string
+import os
+from influxdb_client.client.influxdb_client_async import InfluxDBClientAsync
+from starlette.websockets import WebSocketDisconnect, WebSocketState
 
-app = Flask(__name__)
+app = FastAPI()
 
-METRICS_LOG_PATH = Path(__file__).parent / "logs" / "smo_metrics.jsonl"
-
-@app.route('/')
-def index():
-    html_template = """
-    <!DOCTYPE html>
-    <html lang="en">
+html = """
+<!DOCTYPE html>
+<html>
     <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Live Metrics Dashboard</title>
-        <style>
-            body { font-family: Arial, sans-serif; background-color: #121212; color: #e0e0e0; }
-            #metrics { white-space: pre-wrap; font-family: monospace; background-color: #1e1e1e; padding: 1em; border-radius: 5px; }
-        </style>
+        <title>Live Metrics</title>
     </head>
     <body>
         <h1>Live Metrics Dashboard</h1>
-        <div id="metrics">Loading...</div>
+        <pre id='metrics'></pre>
         <script>
-            async function fetchMetrics() {
-                try {
-                    const response = await fetch('/api/metrics');
-                    const data = await response.json();
-                    document.getElementById('metrics').textContent = JSON.stringify(data, null, 2);
-                } catch (error) {
-                    console.error('Error fetching metrics:', error);
-                    document.getElementById('metrics').textContent = 'Error loading metrics.';
-                }
-            }
-            setInterval(fetchMetrics, 2000);
-            fetchMetrics();
+            var ws = new WebSocket("ws://localhost:5678/ws");
+            ws.onmessage = function(event) {
+                var metrics = document.getElementById('metrics')
+                var data = JSON.parse(event.data)
+                metrics.textContent = JSON.stringify(data, null, 2)
+            };
         </script>
     </body>
-    </html>
-    """
-    return render_template_string(html_template)
+</html>
+"""
 
-@app.route('/api/metrics')
-def get_metrics():
-    if not METRICS_LOG_PATH.exists():
-        return jsonify({"error": "Metrics log file not found."}), 404
+@app.get("/")
+async def get():
+    return HTMLResponse(html)
 
-    try:
-        with open(METRICS_LOG_PATH, "r", encoding="utf-8") as f:
-            last_line = None
-            for line in f:
-                if line.strip():
-                    last_line = line
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
 
-            if last_line:
-                return jsonify(json.loads(last_line))
-            else:
-                return jsonify({"error": "No metrics found in log file."}), 404
-    except (json.JSONDecodeError, IOError) as e:
-        return jsonify({"error": f"Error reading metrics: {e}"}), 500
+    url = os.environ.get("INFLUXDB_URL", "http://smo-db:8086")
+    token = os.environ.get("INFLUXDB_TOKEN", "my-super-secret-token")
+    org = os.environ.get("INFLUXDB_ORG", "my-org")
+    bucket = os.environ.get("INFLUXDB_BUCKET", "smo-metrics")
 
-if __name__ == '__main__':
-    app.run(debug=True)
+    async with InfluxDBClientAsync(url=url, token=token, org=org) as client:
+        query_api = client.query_api()
+
+        while True:
+            try:
+                query = f'from(bucket: "{bucket}") |> range(start: -1m) |> last()'
+                tables = await query_api.query(query)
+
+                results = {}
+                for table in tables:
+                    for record in table.records:
+                        measurement = record.get_measurement()
+                        field = record.get_field()
+                        value = record.get_value()
+                        if measurement not in results:
+                            results[measurement] = {}
+                        results[measurement][field] = value
+
+                await websocket.send_text(json.dumps(results, indent=2))
+            except WebSocketDisconnect:
+                break
+            except Exception as e:
+                if websocket.client_state == WebSocketState.CONNECTED:
+                    await websocket.send_text(json.dumps({"error": str(e)}))
+                else:
+                    break
+
+            await asyncio.sleep(1)

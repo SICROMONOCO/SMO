@@ -1,43 +1,71 @@
-# Python cache and build
-__pycache__/
-*.py[cod]
-*.egg-info/
-build/
-dist/
-
-# Virtual environments
-venv/
-env/
-.venv/
-
-# Logs and temp files
-logs/
-*.log
-*.tmp
-*.bak
-*.swp
-
-# System
 .DS_Store
 Thumbs.db
 
-# WSL and VSCode
-.vscode/
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+pip-wheel-metadata/
+
+# Virtual environments
+env/
+.venv/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Pytest
+.pytest_cache/
+
+# IDEs / editors
 .idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
 
-# Docker
-*.pid
-*.sock
-.dockerignore
+# Logs and runtime files
+*.log
+logs/
+*.sqlite3
 
-# Environment configs
+# Environment variables
 .env
-config/*.local.json
-config/*.secret.yaml
+.env.*
 
-# Tests / coverage
+# Sensitive keys and SSH
+remote_ssh/id_rsa
+remote_ssh/*.pem
+remote_ssh/id_rsa.pub
+remote_ssh/id_rsa.pub
+# Coverage
 .coverage
 htmlcov/
-pytest_cache/
+coverage.xml
 
-orginized
+# Misc
+*.pyc
+*.pyo
+*.pyd
+remote_ssh/id_rsa.pub
+remote_ssh/id_rsa.pub
