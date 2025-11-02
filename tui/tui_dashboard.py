@@ -84,14 +84,14 @@ TabPane {
     overflow-y: auto;
 }
 
-/* Fixed bottom bar for alerts */
+/* Fixed bottom bar for alerts - increased height for better visibility */
 #alerts-bottom-bar {
     width: 100%;
-    height: 5;
-    min-height: 5;
-    max-height: 5;
-    background: #1a1a1a;
-    border-top: thick #4a4a4a;
+    height: auto;
+    min-height: 8;
+    max-height: 15;
+    background: #0a0a0a;
+    border-top: thick #ff6b6b;
     layout: vertical;
 }
 
@@ -103,7 +103,7 @@ MetricGroup {
     padding: 1;
     height: auto;
     min-height: 8;
-    max-height: 25vh; /* Limit max height, enable scrolling */
+    max-height: 20vh; /* Reduced to make room for larger alerts area */
     overflow-y: auto;
     layout: vertical;
 }
@@ -134,17 +134,17 @@ MetricGroup {
     max-height: 25vh;
 }
 
-/* Alerts in bottom bar - compact single line, no border, no title */
+/* Alerts in bottom bar - more space for table display */
 #alerts-bottom-bar #alerts {
-    border: none;
-    background: #1a1a1a;
+    border: thick #ff6b6b;
+    background: #1a0a0a;
     width: 100%;
-    height: 3;
-    min-height: 3;
-    max-height: 3;
-    padding: 0;
+    height: auto;
+    min-height: 6;
+    max-height: 13;
+    padding: 1;
     margin: 0;
-    overflow: hidden;
+    overflow-y: auto;
 }
 
 /* Hide the title label in bottom bar alerts (if it exists) */
@@ -152,10 +152,11 @@ MetricGroup {
     display: none;
 }
 
-/* Ensure alerts Static widget takes full height in bottom bar */
+/* Ensure alerts Static widget takes appropriate height in bottom bar */
 #alerts-bottom-bar #alerts > Static {
-    height: 3;
-    min-height: 3;
+    height: auto;
+    min-height: 5;
+    max-height: 12;
 }
 
 
@@ -188,17 +189,16 @@ MetricGroup > Static {
     min-height: 1;
 }
 
-/* Alerts renderable in bottom bar - single line, no wrap */
+/* Alerts renderable in bottom bar - table format with good spacing */
 #alerts-bottom-bar #alerts-renderable {
     width: 100%;
-    height: 3;
-    min-height: 3;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    padding: 0 1;
-    content-align: left middle;
-    background: #2a1a1a;
-    border-top: thick #ff6b6b;
+    height: auto;
+    min-height: 5;
+    max-height: 12;
+    overflow-y: auto;
+    padding: 1;
+    content-align: left top;
+    background: #1a0a0a;
 }
 
 .stat-title {

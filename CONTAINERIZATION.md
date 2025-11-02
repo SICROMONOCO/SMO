@@ -1,5 +1,51 @@
 # SMO Containerization Guide
 
+## Prerequisites
+
+Before starting, ensure you have:
+
+1. **Docker Engine** installed and running
+   - For Ubuntu/Debian: See installation instructions below
+   - For other distributions: Visit [Docker Installation Guide](https://docs.docker.com/engine/install/)
+   
+2. **Docker Compose** (v1.27.0+ or Docker Compose plugin v2.0.0+)
+   - Usually included with Docker installation
+   - The setup script will detect which version you have
+
+### Quick Docker Installation (Ubuntu/Debian)
+
+If you don't have Docker installed, see [docs/DOCKER_SETUP.md](docs/DOCKER_SETUP.md) for detailed installation instructions for all Linux distributions.
+
+**Quick Ubuntu/Debian installation:**
+
+```bash
+# Install prerequisites
+sudo apt-get update
+sudo apt-get install -y ca-certificates curl gnupg
+
+# Add Docker's official GPG key
+sudo install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+sudo chmod a+r /etc/apt/keyrings/docker.gpg
+
+# Add Docker repository
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
+  https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+# Install Docker Engine and Docker Compose plugin
+sudo apt-get update
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+# Start Docker and enable on boot
+sudo systemctl start docker
+sudo systemctl enable docker
+
+# (Optional) Add your user to docker group to run without sudo
+sudo usermod -aG docker $USER
+newgrp docker  # Or log out and back in
+```
+
 ## Overview
 
 SMO (System Monitoring & Orchestration) can run in two modes:
@@ -139,6 +185,15 @@ In host network mode:
 - Web dashboard runs on port 5000 (container port = host port)
 - No port mapping needed (using host network directly)
 
+## Docker Compose Files
+
+SMO uses a simple, two-file Docker Compose structure:
+
+1. **docker-compose.yml** - Base configuration for container metrics mode
+2. **docker-compose.host.yml** - Extends base with host metrics mode settings
+
+The setup script (`setup.sh`) automatically selects the appropriate files based on your choice.
+
 ## Common Commands
 
 ### View Logs
@@ -181,6 +236,49 @@ docker-compose exec smo-db influx
 ```
 
 ## Troubleshooting
+
+### "Cannot connect to the Docker daemon" error
+
+**Error message:**
+```
+❌ Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?
+```
+
+**This means Docker is not installed or not running. Solutions:**
+
+See [docs/DOCKER_SETUP.md](docs/DOCKER_SETUP.md) for comprehensive troubleshooting.
+
+**Quick solutions:**
+
+1. **Check if Docker is installed:**
+   ```bash
+   docker --version
+   ```
+   If not found, install Docker using the instructions above.
+
+2. **Check if Docker daemon is running:**
+   ```bash
+   sudo systemctl status docker
+   ```
+   
+3. **Start Docker if it's stopped:**
+   ```bash
+   sudo systemctl start docker
+   sudo systemctl enable docker  # Enable auto-start on boot
+   ```
+
+4. **Check permissions (if you get permission denied):**
+   ```bash
+   # Add your user to docker group
+   sudo usermod -aG docker $USER
+   newgrp docker  # Or log out and back in
+   ```
+
+5. **Verify Docker is working:**
+   ```bash
+   docker info
+   docker run hello-world
+   ```
 
 ### "Permission denied" errors in host mode
 

@@ -1,6 +1,32 @@
 # System Monitoring and Orchestration Tool
 
-This project is a comprehensive system monitoring tool with a Textual TUI, a web dashboard, and a remote monitoring agent. The entire application is containerized with Docker for easy deployment and development.
+This project is a comprehensive system monitoring tool with a Textual TUI, a web dashboard, and a remote monitoring agent.
+
+## Installation Options
+
+SMO can be deployed in two ways:
+
+### 1. Docker Installation (Recommended for most users)
+
+The entire application is containerized with Docker for easy deployment and development.
+
+**Quick Start:**
+```bash
+./setup.sh
+```
+
+See [CONTAINERIZATION.md](CONTAINERIZATION.md) for details.
+
+### 2. Standalone Installation (Direct host installation)
+
+Install SMO and InfluxDB directly on your Linux system without Docker.
+
+**Quick Start:**
+```bash
+sudo ./setup-standalone.sh
+```
+
+See [docs/STANDALONE_INSTALLATION.md](docs/STANDALONE_INSTALLATION.md) for details.
 
 ## Quick Start
 
@@ -29,6 +55,22 @@ See [CONTAINERIZATION.md](CONTAINERIZATION.md) for detailed containerization doc
 - 🔔 **Alerting System**: Configurable thresholds and notifications
 - 🐋 **Containerized**: Easy deployment with Docker Compose
 - 🖧 **Host Monitoring**: Support for monitoring actual host machine metrics
+
+## Prerequisites
+
+Before using SMO, you need:
+
+- **Docker Engine** (20.10.0 or later) - [Installation Guide](https://docs.docker.com/engine/install/)
+- **Docker Compose** (v1.27.0+ or Docker Compose plugin v2.0.0+)
+- **Linux** (for host metrics mode) or any OS with Docker support (for container metrics mode)
+
+**Quick check:**
+```bash
+docker --version
+docker compose version  # or: docker-compose --version
+```
+
+If Docker is not installed, see [docs/DOCKER_SETUP.md](docs/DOCKER_SETUP.md) for installation instructions or run the setup script which will provide guidance.
 
 ## Docker Compose Setup
 
@@ -109,6 +151,8 @@ docker-compose restart
 
 ## Documentation
 
-- 📖 [CONTAINERIZATION.md](CONTAINERIZATION.md) - Detailed containerization guide
+- 📖 [CONTAINERIZATION.md](CONTAINERIZATION.md) - Docker containerization guide
+- 🖥️ [STANDALONE_INSTALLATION.md](docs/STANDALONE_INSTALLATION.md) - Standalone (non-Docker) installation guide
 - 📘 [USAGE.md](USAGE.md) - Application usage and features
+- 🐳 [DOCKER_SETUP.md](docs/DOCKER_SETUP.md) - Docker installation guide
 - 🔧 Configuration files in `config/` directory

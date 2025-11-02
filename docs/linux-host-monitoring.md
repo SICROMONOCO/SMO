@@ -16,8 +16,8 @@ Steps:
 3. From the repository root on the VM, run:
 
 ```bash
-# start with an override that puts the agent into host mode
-docker compose -f docker-compose.yml -f docker-compose.host.override.yml up -d --build
+# start with host metrics mode
+docker compose -f docker-compose.yml -f docker-compose.host.yml up -d --build
 ```
 
 4. Verify the host reports match those inside the container:
