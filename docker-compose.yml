@@ -24,6 +24,11 @@ services:
       - "5678:5000"
     volumes:
       - ./logs:/app/logs
+    environment:
+      - INFLUXDB_URL=${INFLUXDB_URL}
+      - INFLUXDB_TOKEN=${INFLUXDB_TOKEN}
+      - INFLUXDB_ORG=${INFLUXDB_ORG}
+      - INFLUXDB_BUCKET=${INFLUXDB_BUCKET}
     depends_on:
       - smo-agent
 
@@ -37,6 +42,11 @@ services:
     volumes:
       - ./config:/app/config
       - ./logs:/app/logs
+    environment:
+      - INFLUXDB_URL=${INFLUXDB_URL}
+      - INFLUXDB_TOKEN=${INFLUXDB_TOKEN}
+      - INFLUXDB_ORG=${INFLUXDB_ORG}
+      - INFLUXDB_BUCKET=${INFLUXDB_BUCKET}
     depends_on:
       - smo-agent
 
@@ -60,8 +70,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.remote
-      args:
-        - PUBLIC_KEY=ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQC2APj+qGk/9PtXFnM2z2VqkWA/71k+hZ6rUc1tASvC2CDS+kRMph14jGLFKo9fhnPNhEg6peENGhQ7ZZ/TuX9zZQ3kKjXM8/jsPAHaCPVf+FM3xOQBESp3mjsP5UExNhKVRilhRtjltYJ49/5xHssC80qC4QAwWUWIHmClGGDgyfTKpnBI+OJ+RBMQy2GUrIAvJhD0ow+TnA3qrnCuLG2U476znWO+Ij1OOmq1Bv3k/apZCJxaJutXnGP0t2TowXzscJv6GsaKNM2iKQU2D4iNmFULEJcDSmOobI4Gm7dagC2UiTy6J057iN4b1+2tSSzreYEK1aSBDyIkBprXvlcrIvSaK6Eq/++k9sj78wxo/iuUofRHow119o1YkrP9geIcE4x3W6pYp3aSDNXubxD94X7ejBc46PgrlWIAwPKErdmp/ZE/LtwH91SMSmmPT63/6FXnUxCmjqyod6IkAeTLSzLS5HS0F/nTyY2ulEML+CBzmrz6lSoTq1lqbVnUe8VQ4EB/thUrIBQhioJPgq4PDrRmddc+2CuBOTlvp+XnG5Mc6aEFZGA9rei/h5vohnkH5oxHstxRFms5ssnsnX+3SP79FAcPcFEntT5j0jHBXw+uGqbOhzt6LrnwZPfXofcARby81TjAldwIKuYsFa0rxToNY29tSsedpRPSdQgCSw== jules@devbox
     ports:
       - "2222:22"
 

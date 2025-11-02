@@ -7,7 +7,20 @@ import csv
 import json
 import os
 from datetime import datetime
-from typing import Any, Dict, Iterator, List
+from typing import Any, Dict, Iterator, List, Tuple
+
+_METADATA_KEYS = {
+    "unit",
+    "type",
+    "description",
+    "refresh_interval",
+    "human_readable",
+    "alert",
+    "threshold",
+    "level",
+    "message",
+    "time",
+}
 from io import StringIO
 from influxdb_client import InfluxDBClient, Point
 from influxdb_client.client.write_api import SYNCHRONOUS
@@ -62,18 +75,50 @@ class MetricsLogger:
                 print(f"Failed to write to InfluxDB: {e}")
 
     def _snapshot_to_points(self, snapshot: Dict[str, Any]) -> List[Point]:
-        points = []
+        points: List[Point] = []
         timestamp = datetime.fromtimestamp(snapshot.get("timestamp"))
 
         for metric, data in snapshot.items():
-            if metric == "timestamp":
+            if metric in {"timestamp", "alerts"}:
                 continue
-            if isinstance(data, dict):
-                for sub_metric, value in data.items():
-                    if isinstance(value, (int, float)):
-                        point = Point(metric).field(sub_metric, value).time(timestamp)
-                        points.append(point)
+
+            field_values = dict(self._iter_numeric_fields(data))
+            if not field_values:
+                continue
+
+            point = Point(metric).time(timestamp)
+            for field_name, value in field_values.items():
+                point.field(field_name, value)
+            points.append(point)
         return points
+
+    def _iter_numeric_fields(self, payload: Any, prefix: Tuple[str, ...] = ()) -> Iterator[Tuple[str, float]]:
+        """Yield flattened numeric fields from nested payload structures."""
+
+        if isinstance(payload, dict):
+            # Handle dicts that directly expose numeric values via the "value" key
+            if "value" in payload:
+                value = payload["value"]
+                if isinstance(value, (int, float)):
+                    yield self._build_field_name(prefix or ("value",)), float(value)
+                elif isinstance(value, (dict, list)):
+                    yield from self._iter_numeric_fields(value, prefix)
+
+            for key, value in payload.items():
+                if key in _METADATA_KEYS or key == "value":
+                    continue
+                yield from self._iter_numeric_fields(value, prefix + (key,))
+
+        elif isinstance(payload, list):
+            for idx, item in enumerate(payload):
+                yield from self._iter_numeric_fields(item, prefix + (str(idx),))
+
+        elif isinstance(payload, (int, float)):
+            yield self._build_field_name(prefix or ("value",)), float(payload)
+
+    def _build_field_name(self, parts: Tuple[str, ...]) -> str:
+        safe_parts = [part.replace(" ", "_") for part in parts if part]
+        return "_".join(safe_parts) or "value"
 
     def write_alert(self, alert: Dict[str, Any]) -> None:
         pass

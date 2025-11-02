@@ -4,6 +4,7 @@ import asyncio
 import json
 import os
 from influxdb_client.client.influxdb_client_async import InfluxDBClientAsync
+from starlette.websockets import WebSocketDisconnect, WebSocketState
 
 app = FastAPI()
 
@@ -60,7 +61,12 @@ async def websocket_endpoint(websocket: WebSocket):
                         results[measurement][field] = value
 
                 await websocket.send_text(json.dumps(results, indent=2))
+            except WebSocketDisconnect:
+                break
             except Exception as e:
-                await websocket.send_text(json.dumps({"error": str(e)}))
+                if websocket.client_state == WebSocketState.CONNECTED:
+                    await websocket.send_text(json.dumps({"error": str(e)}))
+                else:
+                    break
 
             await asyncio.sleep(1)
