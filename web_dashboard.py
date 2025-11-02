@@ -352,7 +352,9 @@ html = """
                     
                     for (let key in perCore) {
                         if (key.includes('_usage') && coreCount < 8) {
-                            const coreNum = key.match(/core_(\d+)/)?.[1];
+                            const match = key.match(/core_(\d+)_usage/);
+                            if (!match) continue; // Skip if pattern doesn't match
+                            const coreNum = match[1];
                             const usage = perCore[key]?.value || 0;
                             coreGrid.push(`
                                 <div class="stat-item">
@@ -602,7 +604,9 @@ html = """
                 container.innerHTML = html;
             }
             
-            var ws = new WebSocket("ws://" + window.location.host + "/ws");
+            // Determine WebSocket protocol based on page protocol
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+            var ws = new WebSocket(wsProtocol + window.location.host + "/ws");
             
             ws.onmessage = function(event) {
                 try {
