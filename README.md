@@ -44,7 +44,7 @@ docker --version
 docker compose version  # or: docker-compose --version
 ```
 
-If Docker is not installed, the setup script will provide installation instructions for your system.
+If Docker is not installed, see [docs/DOCKER_SETUP.md](docs/DOCKER_SETUP.md) for installation instructions or run the setup script which will provide guidance.
 
 ## Docker Compose Setup
 

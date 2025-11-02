@@ -14,7 +14,9 @@ Before starting, ensure you have:
 
 ### Quick Docker Installation (Ubuntu/Debian)
 
-If you don't have Docker installed, run these commands:
+If you don't have Docker installed, see [docs/DOCKER_SETUP.md](docs/DOCKER_SETUP.md) for detailed installation instructions for all Linux distributions.
+
+**Quick Ubuntu/Debian installation:**
 
 ```bash
 # Install prerequisites
@@ -241,6 +243,10 @@ docker-compose exec smo-db influx
 ```
 
 **This means Docker is not installed or not running. Solutions:**
+
+See [docs/DOCKER_SETUP.md](docs/DOCKER_SETUP.md) for comprehensive troubleshooting.
+
+**Quick solutions:**
 
 1. **Check if Docker is installed:**
    ```bash
