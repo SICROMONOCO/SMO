@@ -105,15 +105,19 @@ class MetricsLogger:
             points.append(point)
         return points
 
-    def _iter_numeric_fields(self, payload: Any, prefix: Tuple[str, ...] = ()) -> Iterator[Tuple[str, float]]:
-        """Yield flattened numeric fields from nested payload structures."""
+    def _iter_numeric_fields(self, payload: Any, prefix: Tuple[str, ...] = ()) -> Iterator[Tuple[str, int | float]]:
+        """Yield flattened numeric fields from nested payload structures.
+        
+        Preserves integer types for fields like 'pid' to avoid InfluxDB type conflicts.
+        """
 
         if isinstance(payload, dict):
             # Handle dicts that directly expose numeric values via the "value" key
             if "value" in payload:
                 value = payload["value"]
                 if isinstance(value, (int, float)):
-                    yield self._build_field_name(prefix or ("value",)), float(value)
+                    # Preserve integer type, convert float to float
+                    yield self._build_field_name(prefix or ("value",)), value
                 elif isinstance(value, (dict, list)):
                     yield from self._iter_numeric_fields(value, prefix)
 
@@ -127,7 +131,8 @@ class MetricsLogger:
                 yield from self._iter_numeric_fields(item, prefix + (str(idx),))
 
         elif isinstance(payload, (int, float)):
-            yield self._build_field_name(prefix or ("value",)), float(payload)
+            # Preserve the original type (int or float)
+            yield self._build_field_name(prefix or ("value",)), payload
 
     def _build_field_name(self, parts: Tuple[str, ...]) -> str:
         safe_parts = [part.replace(" ", "_") for part in parts if part]
