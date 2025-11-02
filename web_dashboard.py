@@ -1,12 +1,30 @@
-from fastapi import FastAPI, WebSocket
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, WebSocket, HTTPException
+from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 import asyncio
 import json
 import os
+import yaml
+import tempfile
+from pathlib import Path
 from influxdb_client.client.influxdb_client_async import InfluxDBClientAsync
 from starlette.websockets import WebSocketDisconnect, WebSocketState
+from starlette.background import BackgroundTask
+from typing import Dict, Any
+import csv
+from io import StringIO
 
 app = FastAPI()
+
+# Configuration paths
+PROJECT_ROOT = Path(__file__).resolve().parent
+CONFIG_PATH = PROJECT_ROOT / "config" / "config.yaml"
+METRICS_LOG_PATH = PROJECT_ROOT / "logs" / "smo_metrics.jsonl"
+
+# Pydantic models
+class ConfigUpdate(BaseModel):
+    config: Dict[str, Any]
 
 html = """
 <!DOCTYPE html>
@@ -241,6 +259,188 @@ html = """
             @keyframes spin {
                 to { transform: rotate(360deg); }
             }
+            
+            /* Tab Navigation */
+            .tabs {
+                display: flex;
+                gap: 10px;
+                margin-bottom: 20px;
+                border-bottom: 2px solid #4a4a4a;
+                padding-bottom: 10px;
+            }
+            
+            .tab-button {
+                background: #1a1a1a;
+                border: 2px solid #4a4a4a;
+                border-bottom: none;
+                color: #888;
+                padding: 12px 24px;
+                cursor: pointer;
+                border-radius: 8px 8px 0 0;
+                font-size: 1em;
+                font-weight: bold;
+                transition: all 0.3s ease;
+            }
+            
+            .tab-button:hover {
+                background: #2a2a2a;
+                color: #f0f0f0;
+            }
+            
+            .tab-button.active {
+                background: #2a2a2a;
+                color: #4a9eff;
+                border-color: #4a9eff;
+            }
+            
+            .tab-content {
+                display: none;
+            }
+            
+            .tab-content.active {
+                display: block;
+            }
+            
+            /* Config Editor Styles */
+            .config-editor {
+                background: #121212;
+                border: 2px solid #4a4a4a;
+                border-radius: 10px;
+                padding: 20px;
+                margin-bottom: 20px;
+            }
+            
+            .config-section {
+                margin-bottom: 20px;
+            }
+            
+            .config-section-title {
+                color: #4a9eff;
+                font-size: 1.2em;
+                font-weight: bold;
+                margin-bottom: 10px;
+                padding-bottom: 5px;
+                border-bottom: 1px solid #4a4a4a;
+            }
+            
+            .config-field {
+                margin-bottom: 15px;
+            }
+            
+            .config-label {
+                display: block;
+                color: #4dd0e1;
+                font-weight: bold;
+                margin-bottom: 5px;
+            }
+            
+            .config-input {
+                width: 100%;
+                padding: 10px;
+                background: #1a1a1a;
+                border: 1px solid #4a4a4a;
+                border-radius: 5px;
+                color: #f0f0f0;
+                font-size: 1em;
+            }
+            
+            .config-input:focus {
+                outline: none;
+                border-color: #4a9eff;
+            }
+            
+            .button {
+                background: #4a9eff;
+                color: #fff;
+                border: none;
+                padding: 12px 24px;
+                border-radius: 5px;
+                cursor: pointer;
+                font-size: 1em;
+                font-weight: bold;
+                margin-right: 10px;
+                transition: background 0.3s ease;
+            }
+            
+            .button:hover {
+                background: #3a8eef;
+            }
+            
+            .button-success {
+                background: #4caf50;
+            }
+            
+            .button-success:hover {
+                background: #45a049;
+            }
+            
+            .button-danger {
+                background: #f44336;
+            }
+            
+            .button-danger:hover {
+                background: #da190b;
+            }
+            
+            /* Log Exporter Styles */
+            .log-exporter {
+                background: #121212;
+                border: 2px solid #4a4a4a;
+                border-radius: 10px;
+                padding: 20px;
+            }
+            
+            .export-format {
+                margin-bottom: 20px;
+            }
+            
+            .format-option {
+                display: inline-block;
+                margin-right: 20px;
+                margin-bottom: 10px;
+            }
+            
+            .format-option input[type="radio"] {
+                margin-right: 5px;
+            }
+            
+            .format-option label {
+                cursor: pointer;
+                color: #f0f0f0;
+            }
+            
+            /* Notification Toast */
+            .notification {
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: #2a2a2a;
+                border: 2px solid #4a9eff;
+                border-radius: 5px;
+                padding: 15px 20px;
+                max-width: 300px;
+                z-index: 1000;
+                animation: slideIn 0.3s ease;
+            }
+            
+            .notification.success {
+                border-color: #4caf50;
+            }
+            
+            .notification.error {
+                border-color: #f44336;
+            }
+            
+            @keyframes slideIn {
+                from {
+                    transform: translateX(400px);
+                    opacity: 0;
+                }
+                to {
+                    transform: translateX(0);
+                    opacity: 1;
+                }
+            }
         </style>
     </head>
     <body>
@@ -249,9 +449,18 @@ html = """
             <div class="subtitle">System Monitoring & Orchestration - Live Metrics</div>
         </div>
         
-        <div id="alerts-container"></div>
+        <!-- Tab Navigation -->
+        <div class="tabs">
+            <button class="tab-button active" onclick="switchTab('metrics')">📊 Live Metrics</button>
+            <button class="tab-button" onclick="switchTab('config')">⚙️ Config Editor</button>
+            <button class="tab-button" onclick="switchTab('logs')">📄 Log Exporter</button>
+        </div>
         
-        <div class="dashboard-grid">
+        <!-- Live Metrics Tab -->
+        <div id="metrics-tab" class="tab-content active">
+            <div id="alerts-container"></div>
+            
+            <div class="dashboard-grid">
             <div class="metric-group" id="cpu-group">
                 <div class="metric-group-title">⚡ CPU Stats</div>
                 <div id="cpu-content" class="no-data">
@@ -294,8 +503,217 @@ html = """
                 </div>
             </div>
         </div>
+        </div>
+        
+        <!-- Config Editor Tab -->
+        <div id="config-tab" class="tab-content">
+            <div class="config-editor">
+                <h2 style="color: #4a9eff; margin-bottom: 20px;">⚙️ Configuration Editor</h2>
+                <div id="config-form"></div>
+                <div style="margin-top: 20px;">
+                    <button class="button button-success" onclick="saveConfig()">💾 Save Configuration</button>
+                    <button class="button button-danger" onclick="resetConfig()">🔄 Reset to Defaults</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Log Exporter Tab -->
+        <div id="logs-tab" class="tab-content">
+            <div class="log-exporter">
+                <h2 style="color: #4a9eff; margin-bottom: 20px;">📄 Log Exporter</h2>
+                
+                <div class="export-format">
+                    <h3 style="color: #4dd0e1; margin-bottom: 10px;">Select Export Format:</h3>
+                    <div class="format-option">
+                        <input type="radio" id="format-json" name="export-format" value="json" checked>
+                        <label for="format-json">JSON</label>
+                    </div>
+                    <div class="format-option">
+                        <input type="radio" id="format-csv" name="export-format" value="csv">
+                        <label for="format-csv">CSV</label>
+                    </div>
+                    <div class="format-option">
+                        <input type="radio" id="format-markdown" name="export-format" value="markdown">
+                        <label for="format-markdown">Markdown</label>
+                    </div>
+                </div>
+                
+                <div class="config-field">
+                    <label class="config-label" for="export-filename">Export Filename:</label>
+                    <input type="text" id="export-filename" class="config-input" placeholder="smo_metrics_export" value="smo_metrics_export">
+                </div>
+                
+                <div style="margin-top: 20px;">
+                    <button class="button button-success" onclick="exportLogs()">📥 Export Logs</button>
+                </div>
+                
+                <div id="export-status" style="margin-top: 20px;"></div>
+            </div>
+        </div>
         
         <script>
+            // Tab switching functionality
+            function switchTab(tabName) {
+                // Hide all tabs
+                document.querySelectorAll('.tab-content').forEach(tab => {
+                    tab.classList.remove('active');
+                });
+                document.querySelectorAll('.tab-button').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                
+                // Show selected tab
+                document.getElementById(tabName + '-tab').classList.add('active');
+                event.target.classList.add('active');
+                
+                // Load config when switching to config tab
+                if (tabName === 'config') {
+                    loadConfig();
+                }
+            }
+            
+            // Notification system
+            function showNotification(message, type = 'info') {
+                const notification = document.createElement('div');
+                notification.className = `notification ${type}`;
+                notification.textContent = message;
+                document.body.appendChild(notification);
+                
+                setTimeout(() => {
+                    notification.remove();
+                }, 3000);
+            }
+            
+            // Config Editor Functions
+            async function loadConfig() {
+                try {
+                    const response = await fetch('/api/config');
+                    const config = await response.json();
+                    
+                    const formHtml = generateConfigForm(config);
+                    document.getElementById('config-form').innerHTML = formHtml;
+                } catch (error) {
+                    showNotification('Failed to load configuration: ' + error.message, 'error');
+                }
+            }
+            
+            function generateConfigForm(config, prefix = '') {
+                let html = '';
+                
+                for (const [key, value] of Object.entries(config)) {
+                    const fullKey = prefix ? `${prefix}.${key}` : key;
+                    
+                    if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+                        html += `<div class="config-section">`;
+                        html += `<div class="config-section-title">${key.replace(/_/g, ' ').toUpperCase()}</div>`;
+                        html += generateConfigForm(value, fullKey);
+                        html += `</div>`;
+                    } else {
+                        html += `<div class="config-field">`;
+                        html += `<label class="config-label" for="config-${fullKey.replace(/\./g, '-')}">${key.replace(/_/g, ' ')}:</label>`;
+                        html += `<input type="text" id="config-${fullKey.replace(/\./g, '-')}" class="config-input" value="${value}" data-key="${fullKey}">`;
+                        html += `</div>`;
+                    }
+                }
+                
+                return html;
+            }
+            
+            async function saveConfig() {
+                try {
+                    const inputs = document.querySelectorAll('#config-form input[data-key]');
+                    const config = {};
+                    
+                    inputs.forEach(input => {
+                        const keys = input.dataset.key.split('.');
+                        let current = config;
+                        
+                        for (let i = 0; i < keys.length - 1; i++) {
+                            if (!current[keys[i]]) {
+                                current[keys[i]] = {};
+                            }
+                            current = current[keys[i]];
+                        }
+                        
+                        // Try to parse as boolean first, then number, otherwise keep as string
+                        let value = input.value;
+                        if (value === 'true' || value === 'false') {
+                            value = value === 'true';
+                        } else if (!isNaN(value) && value !== '' && value.trim() !== '') {
+                            // Only convert to number if it's actually a numeric string
+                            value = Number(value);
+                        }
+                        
+                        current[keys[keys.length - 1]] = value;
+                    });
+                    
+                    const response = await fetch('/api/config', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ config })
+                    });
+                    
+                    if (response.ok) {
+                        showNotification('Configuration saved successfully!', 'success');
+                    } else {
+                        throw new Error('Failed to save configuration');
+                    }
+                } catch (error) {
+                    showNotification('Failed to save configuration: ' + error.message, 'error');
+                }
+            }
+            
+            async function resetConfig() {
+                if (!confirm('Are you sure you want to reset to default configuration?')) {
+                    return;
+                }
+                
+                try {
+                    const response = await fetch('/api/config/reset', {
+                        method: 'POST'
+                    });
+                    
+                    if (response.ok) {
+                        showNotification('Configuration reset to defaults!', 'success');
+                        loadConfig();
+                    } else {
+                        throw new Error('Failed to reset configuration');
+                    }
+                } catch (error) {
+                    showNotification('Failed to reset configuration: ' + error.message, 'error');
+                }
+            }
+            
+            // Log Exporter Functions
+            async function exportLogs() {
+                try {
+                    const format = document.querySelector('input[name="export-format"]:checked').value;
+                    const filename = document.getElementById('export-filename').value || 'smo_metrics_export';
+                    
+                    const response = await fetch(`/api/logs/export?format=${format}&filename=${filename}`);
+                    
+                    if (response.ok) {
+                        const blob = await response.blob();
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `${filename}.${format}`;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        window.URL.revokeObjectURL(url);
+                        
+                        showNotification('Logs exported successfully!', 'success');
+                    } else {
+                        throw new Error('Failed to export logs');
+                    }
+                } catch (error) {
+                    showNotification('Failed to export logs: ' + error.message, 'error');
+                }
+            }
+            
             function getUsageClass(value, type = 'general') {
                 if (type === 'disk') {
                     if (value < 70) return 'good';
@@ -652,6 +1070,179 @@ html = """
 @app.get("/")
 async def get():
     return HTMLResponse(html)
+
+# Configuration API endpoints
+@app.get("/api/config")
+async def get_config():
+    """Get current configuration."""
+    try:
+        if not CONFIG_PATH.exists():
+            raise HTTPException(status_code=404, detail="Configuration file not found")
+        
+        with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+            config = yaml.safe_load(f) or {}
+        
+        return JSONResponse(content=config)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/config")
+async def update_config(config_update: ConfigUpdate):
+    """Update configuration."""
+    try:
+        CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        
+        with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+            yaml.safe_dump(config_update.config, f, default_flow_style=False, sort_keys=False)
+        
+        return JSONResponse(content={"status": "success", "message": "Configuration saved successfully"})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/config/reset")
+async def reset_config():
+    """Reset configuration to defaults."""
+    try:
+        # Default configuration (same as in agent.py)
+        default_config = {
+            "refresh": {"cpu": 2, "memory": 5, "disk": 10, "network": 5, "process": 2},
+            "logging": {"format": "json"},
+            "agent": {"snapshot_interval": 2},
+            "display": {"show_snapshot_info": True, "pretty_max_depth": 2, "pretty_max_length": 1200},
+            "alerts": {
+                "cpu_percent": 80,
+                "memory_percent": 85,
+                "disk_usage": 90,
+                "network_bytes_sent": 1000000
+            }
+        }
+        
+        # Try to import from agent module, fallback to hardcoded default
+        try:
+            from agent import DEFAULT_CONFIG
+            default_config = DEFAULT_CONFIG
+        except ImportError:
+            pass  # Use hardcoded default above
+        
+        CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        
+        with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+            yaml.safe_dump(default_config, f, default_flow_style=False, sort_keys=False)
+        
+        return JSONResponse(content={"status": "success", "message": "Configuration reset to defaults"})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Log export API endpoints
+@app.get("/api/logs/export")
+async def export_logs(format: str = "json", filename: str = "smo_metrics_export"):
+    """Export logs in specified format."""
+    try:
+        # Validate format against allowlist and map to safe file extensions
+        format_mapping = {
+            "json": {"ext": "json", "media": "application/json"},
+            "csv": {"ext": "csv", "media": "text/csv"},
+            "markdown": {"ext": "md", "media": "text/markdown"}
+        }
+        
+        if format not in format_mapping:
+            raise HTTPException(status_code=400, detail=f"Invalid format. Use one of: {', '.join(format_mapping.keys())}")
+        
+        format_info = format_mapping[format]
+        
+        if not METRICS_LOG_PATH.exists():
+            raise HTTPException(status_code=404, detail="Metrics log file not found")
+        
+        # Read all logs
+        logs = []
+        with open(METRICS_LOG_PATH, "r", encoding="utf-8") as f:
+            for line in f:
+                if line.strip():
+                    try:
+                        logs.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        continue
+        
+        if not logs:
+            raise HTTPException(status_code=404, detail="No logs to export")
+        
+        # Generate export file
+        if format == "json":
+            content = json.dumps(logs, indent=2)
+        elif format == "csv":
+            content = _logs_to_csv(logs)
+        elif format == "markdown":
+            content = _logs_to_markdown(logs)
+        
+        # Create temporary file for download with cleanup task
+        # Use validated extension from mapping to prevent path injection
+        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix=f'.{format_info["ext"]}') as tmp:
+            tmp.write(content)
+            tmp_path = tmp.name
+        
+        # Cleanup function to remove temp file after response
+        def cleanup():
+            try:
+                os.unlink(tmp_path)
+            except Exception:
+                pass
+        
+        return FileResponse(
+            tmp_path,
+            media_type=format_info["media"],
+            filename=f"{filename}.{format_info['ext']}",
+            background=BackgroundTask(cleanup)
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+def _flatten_dict(d: dict, parent_key: str = '', sep: str = '.') -> dict:
+    """Flatten a nested dictionary."""
+    items = []
+    for k, v in d.items():
+        new_key = f"{parent_key}{sep}{k}" if parent_key else k
+        if isinstance(v, dict):
+            items.extend(_flatten_dict(v, new_key, sep=sep).items())
+        else:
+            items.append((new_key, v))
+    return dict(items)
+
+def _logs_to_csv(logs: list) -> str:
+    """Convert logs to CSV format."""
+    flat_logs = [_flatten_dict(log) for log in logs]
+    if not flat_logs:
+        return ""
+    
+    # Get all unique headers
+    headers = sorted(list(set(key for log in flat_logs for key in log.keys())))
+    
+    output = StringIO()
+    writer = csv.DictWriter(output, fieldnames=headers)
+    writer.writeheader()
+    writer.writerows(flat_logs)
+    
+    return output.getvalue()
+
+def _logs_to_markdown(logs: list) -> str:
+    """Convert logs to Markdown table format."""
+    flat_logs = [_flatten_dict(log) for log in logs]
+    if not flat_logs:
+        return ""
+    
+    headers = sorted(list(set(key for log in flat_logs for key in log.keys())))
+    
+    # Create markdown table
+    lines = []
+    lines.append(f"| {' | '.join(headers)} |")
+    lines.append(f"| {' | '.join(['---'] * len(headers))} |")
+    
+    for log in flat_logs:
+        row = [str(log.get(h, '')) for h in headers]
+        lines.append(f"| {' | '.join(row)} |")
+    
+    return '\n'.join(lines)
 
 def _unflatten_fields(flat_dict):
     """Convert flat field names back to nested structure.
