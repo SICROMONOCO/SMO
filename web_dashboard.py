@@ -351,7 +351,7 @@ html = """
                     const coreGrid = [];
                     
                     for (let key in perCore) {
-                        if (key.includes('_usage') && coreCount < 8) {
+                        if (coreCount < 8) {
                             const match = key.match(/^core_(\d+)_usage$/);
                             if (!match) continue; // Skip if pattern doesn't match exactly
                             const coreNum = match[1];
