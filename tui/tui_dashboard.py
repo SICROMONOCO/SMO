@@ -451,7 +451,7 @@ class TUIDashboardApp(App):
                         yield RadioButton("JSON", value=True)
                         yield RadioButton("CSV")
                         yield RadioButton("Markdown")
-                    yield Input(placeholder="/path/to/export.log", id="export_path")
+                    yield Input(placeholder="~/smo_export/metrics.json (or /tmp/export.json)", id="export_path")
                     yield Button("Export", variant="primary", id="export_logs")
             
         # Fixed bottom bar for alerts
@@ -565,7 +565,29 @@ class TUIDashboardApp(App):
                 self.notify("No logs to export.", severity="warning")
                 return
 
-            export_path.parent.mkdir(parents=True, exist_ok=True)
+            # Create parent directories with proper error handling
+            try:
+                export_path.parent.mkdir(parents=True, exist_ok=True)
+            except PermissionError:
+                self.notify(f"Permission denied: Cannot create directory {export_path.parent}", severity="error")
+                logger.error(f"Permission denied creating directory: {export_path.parent}")
+                return
+            except Exception as e:
+                self.notify(f"Failed to create directory: {e}", severity="error")
+                logger.error(f"Failed to create directory {export_path.parent}: {e}")
+                return
+
+            # Test write permissions before attempting full export
+            try:
+                test_file = export_path.parent / ".write_test"
+                test_file.touch()
+                test_file.unlink()
+            except PermissionError:
+                self.notify(f"Permission denied: Cannot write to {export_path.parent}", severity="error")
+                logger.error(f"Permission denied writing to: {export_path.parent}")
+                return
+            except Exception as e:
+                logger.warning(f"Write test failed (non-fatal): {e}")
 
             if selected_format == "json":
                 with open(export_path, "w", encoding="utf-8") as f:
@@ -601,6 +623,9 @@ class TUIDashboardApp(App):
         except NoMatches as e:
             self.notify(f"UI component not found: {e}", severity="error")
             logger.error(f"UI component not found during export: {e}")
+        except PermissionError as e:
+            self.notify(f"Permission denied: {e}", severity="error")
+            logger.error(f"Permission error during export: {e}")
         except IOError as e:
             self.notify(f"File I/O error during export: {e}", severity="error")
             logger.error(f"File I/O error during export: {e}")
