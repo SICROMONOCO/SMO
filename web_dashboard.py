@@ -1138,10 +1138,17 @@ async def reset_config():
 async def export_logs(format: str = "json", filename: str = "smo_metrics_export"):
     """Export logs in specified format."""
     try:
-        # Validate format against allowlist
-        allowed_formats = ["json", "csv", "markdown"]
-        if format not in allowed_formats:
-            raise HTTPException(status_code=400, detail=f"Invalid format. Use one of: {', '.join(allowed_formats)}")
+        # Validate format against allowlist and map to safe file extensions
+        format_mapping = {
+            "json": {"ext": "json", "media": "application/json"},
+            "csv": {"ext": "csv", "media": "text/csv"},
+            "markdown": {"ext": "md", "media": "text/markdown"}
+        }
+        
+        if format not in format_mapping:
+            raise HTTPException(status_code=400, detail=f"Invalid format. Use one of: {', '.join(format_mapping.keys())}")
+        
+        format_info = format_mapping[format]
         
         if not METRICS_LOG_PATH.exists():
             raise HTTPException(status_code=404, detail="Metrics log file not found")
@@ -1162,16 +1169,14 @@ async def export_logs(format: str = "json", filename: str = "smo_metrics_export"
         # Generate export file
         if format == "json":
             content = json.dumps(logs, indent=2)
-            media_type = "application/json"
         elif format == "csv":
             content = _logs_to_csv(logs)
-            media_type = "text/csv"
         elif format == "markdown":
             content = _logs_to_markdown(logs)
-            media_type = "text/markdown"
         
         # Create temporary file for download with cleanup task
-        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix=f'.{format}') as tmp:
+        # Use validated extension from mapping to prevent path injection
+        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix=f'.{format_info["ext"]}') as tmp:
             tmp.write(content)
             tmp_path = tmp.name
         
@@ -1184,8 +1189,8 @@ async def export_logs(format: str = "json", filename: str = "smo_metrics_export"
         
         return FileResponse(
             tmp_path,
-            media_type=media_type,
-            filename=f"{filename}.{format}",
+            media_type=format_info["media"],
+            filename=f"{filename}.{format_info['ext']}",
             background=BackgroundTask(cleanup)
         )
     except HTTPException:
