@@ -653,6 +653,27 @@ html = """
 async def get():
     return HTMLResponse(html)
 
+def _unflatten_fields(flat_dict):
+    """Convert flat field names back to nested structure.
+    
+    Example: {'average_cpu_percent_value': 45.2} -> {'average': {'cpu_percent': {'value': 45.2}}}
+    """
+    result = {}
+    for key, value in flat_dict.items():
+        parts = key.split('_')
+        current = result
+        
+        # Navigate/create nested structure
+        for i, part in enumerate(parts[:-1]):
+            if part not in current:
+                current[part] = {}
+            current = current[part]
+        
+        # Set the final value
+        current[parts[-1]] = {'value': value}
+    
+    return result
+
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
@@ -680,7 +701,12 @@ async def websocket_endpoint(websocket: WebSocket):
                             results[measurement] = {}
                         results[measurement][field] = value
 
-                await websocket.send_text(json.dumps(results, indent=2))
+                # Unflatten each measurement's fields back to nested structure
+                unflattened_results = {}
+                for measurement, flat_fields in results.items():
+                    unflattened_results[measurement] = _unflatten_fields(flat_fields)
+
+                await websocket.send_text(json.dumps(unflattened_results, indent=2))
             except WebSocketDisconnect:
                 break
             except Exception as e:
