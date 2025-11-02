@@ -119,8 +119,8 @@ def test_logs_export_json(test_logs_dir, monkeypatch):
     assert response.status_code == 200
     assert response.headers["content-type"] == "application/json"
     
-    # Verify content
-    data = response.json()
+    # Verify content - FileResponse returns bytes, so parse it
+    data = json.loads(response.content.decode('utf-8'))
     assert len(data) == 2
     assert data[0]["timestamp"] == 1234567890
 

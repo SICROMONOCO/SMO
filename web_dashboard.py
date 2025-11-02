@@ -633,12 +633,13 @@ html = """
                             current = current[keys[i]];
                         }
                         
-                        // Try to parse as number or boolean
+                        // Try to parse as boolean first, then number, otherwise keep as string
                         let value = input.value;
-                        if (!isNaN(value) && value !== '') {
-                            value = Number(value);
-                        } else if (value === 'true' || value === 'false') {
+                        if (value === 'true' || value === 'false') {
                             value = value === 'true';
+                        } else if (!isNaN(value) && value !== '' && value.trim() !== '') {
+                            // Only convert to number if it's actually a numeric string
+                            value = Number(value);
                         }
                         
                         current[keys[keys.length - 1]] = value;
@@ -1100,13 +1101,31 @@ async def update_config(config_update: ConfigUpdate):
 async def reset_config():
     """Reset configuration to defaults."""
     try:
-        # Import default config from agent
-        from agent import DEFAULT_CONFIG
+        # Default configuration (same as in agent.py)
+        default_config = {
+            "refresh": {"cpu": 2, "memory": 5, "disk": 10, "network": 5, "process": 2},
+            "logging": {"format": "json"},
+            "agent": {"snapshot_interval": 2},
+            "display": {"show_snapshot_info": True, "pretty_max_depth": 2, "pretty_max_length": 1200},
+            "alerts": {
+                "cpu_percent": 80,
+                "memory_percent": 85,
+                "disk_usage": 90,
+                "network_bytes_sent": 1000000
+            }
+        }
+        
+        # Try to import from agent module, fallback to hardcoded default
+        try:
+            from agent import DEFAULT_CONFIG
+            default_config = DEFAULT_CONFIG
+        except ImportError:
+            pass  # Use hardcoded default above
         
         CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
         
         with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-            yaml.safe_dump(DEFAULT_CONFIG, f, default_flow_style=False, sort_keys=False)
+            yaml.safe_dump(default_config, f, default_flow_style=False, sort_keys=False)
         
         return JSONResponse(content={"status": "success", "message": "Configuration reset to defaults"})
     except Exception as e:
@@ -1146,17 +1165,26 @@ async def export_logs(format: str = "json", filename: str = "smo_metrics_export"
         else:
             raise HTTPException(status_code=400, detail="Invalid format. Use 'json', 'csv', or 'markdown'")
         
-        # Create temporary file for download
+        # Create temporary file for download with cleanup task
         import tempfile
+        from starlette.background import BackgroundTask
+        
         with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix=f'.{format}') as tmp:
             tmp.write(content)
             tmp_path = tmp.name
+        
+        # Cleanup function to remove temp file after response
+        def cleanup():
+            try:
+                os.unlink(tmp_path)
+            except Exception:
+                pass
         
         return FileResponse(
             tmp_path,
             media_type=media_type,
             filename=f"{filename}.{format}",
-            background=None  # File will be deleted after response
+            background=BackgroundTask(cleanup)
         )
     except HTTPException:
         raise
