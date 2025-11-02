@@ -94,9 +94,11 @@ class AlertsGroup(MetricGroup):
             logger.debug(f"Found alerts Static widget, total alerts found: {len(alerts)}")
             
             if not alerts:
-                # Show "No alerts" message as a single line
-                no_alert_text = Text("✓ No active alerts", style="bold green")
-                static_widget.update(no_alert_text)
+                # Show "No alerts" message with a nice checkmark
+                table = Table(show_header=False, show_edge=False, box=None, padding=(0, 1))
+                table.add_column(style="bold green")
+                table.add_row("✓ All Systems Normal - No Active Alerts")
+                static_widget.update(table)
                 logger.debug("Updated with 'No active alerts' message")
                 return
 
@@ -104,10 +106,22 @@ class AlertsGroup(MetricGroup):
             level_priority = {"error": 0, "warning": 1, "info": 2}
             alerts.sort(key=lambda x: level_priority.get(str(x.get("level", "info")).lower(), 3))
 
-            # Create a single line display for all alerts
-            alerts_text = Text()
+            # Create a visually appealing table for alerts
+            table = Table(
+                show_header=True,
+                header_style="bold white on #1a1a1a",
+                show_edge=True,
+                border_style="bright_red",
+                box=None,
+                padding=(0, 1),
+                expand=True
+            )
             
-            for idx, alert in enumerate(alerts):
+            table.add_column("", width=3, style="bold", no_wrap=True)  # Icon
+            table.add_column("Alert Type", style="bold", min_width=15)
+            table.add_column("Details", style="", min_width=30)
+            
+            for alert in alerts:
                 if not isinstance(alert, dict):
                     continue
                     
@@ -115,42 +129,41 @@ class AlertsGroup(MetricGroup):
                 metric = str(alert.get("metric", "unknown"))
                 message = str(alert.get("message", "No message"))
                 
-                # Format metric name for display (compact)
+                # Format metric name for display
                 display_metric = metric.replace("_", " ").title()
                 if ":" in display_metric:
                     parts = display_metric.split(":", 1)
                     display_metric = parts[0].strip()
+                    # Add device info if present
+                    if len(parts) > 1:
+                        message = f"[{parts[1].strip()}] {message}"
                 
-                # Add separator between alerts
-                if idx > 0:
-                    alerts_text.append(" | ", style="dim")
-                
-                # Color code by level with icon
+                # Color code and icon by level
                 if level == "error":
-                    alerts_text.append("🔴 ", style="bold red")
-                    alerts_text.append(f"{display_metric}: ", style="bold red")
+                    icon = "🔴"
+                    metric_style = "bold red"
+                    msg_style = "red"
                 elif level == "warning":
-                    alerts_text.append("⚠ ", style="bold yellow")
-                    alerts_text.append(f"{display_metric}: ", style="bold yellow")
+                    icon = "⚠️"
+                    metric_style = "bold yellow"
+                    msg_style = "yellow"
                 else:
-                    alerts_text.append("ℹ ", style="bold blue")
-                    alerts_text.append(f"{display_metric}: ", style="bold blue")
+                    icon = "ℹ️"
+                    metric_style = "bold cyan"
+                    msg_style = "cyan"
                 
-                # Add message (truncate if too long)
-                max_msg_len = 40
-                if len(message) > max_msg_len:
-                    message = message[:max_msg_len] + "..."
-                alerts_text.append(message, style="white")
-
-            # Ensure we have content to display
-            if len(alerts_text) == 0:
-                alerts_text = Text("No alerts data", style="dim")
+                # Add row with formatted content
+                table.add_row(
+                    Text(icon),
+                    Text(display_metric, style=metric_style),
+                    Text(message, style=msg_style)
+                )
             
-            static_widget.update(alerts_text)
+            static_widget.update(table)
         except Exception as e:
             # Fallback display on any error
             logger.error(f"Error rendering alerts: {e}", exc_info=True)
-            error_text = Text(f"Error: {str(e)[:50]}", style="red")
+            error_text = Text(f"⚠️ Error displaying alerts: {str(e)[:50]}", style="bold red")
             try:
                 error_widget = self.query_one("#alerts-renderable", Static)
                 error_widget.update(error_text)
