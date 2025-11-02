@@ -52,7 +52,9 @@ logs/
 
 # Environment variables
 .env
-.env.*
+.env.local
+.env.*.local
+!.env.example
 
 # Sensitive keys and SSH
 remote_ssh/id_rsa
