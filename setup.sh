@@ -10,6 +10,76 @@ echo "🚀 SMO System Monitoring Setup"
 echo "================================"
 echo ""
 
+# Function to detect docker-compose command
+detect_docker_compose() {
+    if command -v docker-compose &> /dev/null; then
+        echo "docker-compose"
+    elif docker compose version &> /dev/null 2>&1; then
+        echo "docker compose"
+    else
+        return 1
+    fi
+}
+
+# Check if Docker is installed and running
+echo "🔍 Checking Docker installation..."
+if ! command -v docker &> /dev/null; then
+    echo "❌ Docker is not installed!"
+    echo ""
+    echo "📦 Please install Docker first:"
+    echo ""
+    echo "For Ubuntu/Debian:"
+    echo "  sudo apt-get update"
+    echo "  sudo apt-get install -y ca-certificates curl gnupg"
+    echo "  sudo install -m 0755 -d /etc/apt/keyrings"
+    echo "  curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg"
+    echo "  sudo chmod a+r /etc/apt/keyrings/docker.gpg"
+    echo "  echo \"deb [arch=\$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \$(. /etc/os-release && echo \"\$VERSION_CODENAME\") stable\" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null"
+    echo "  sudo apt-get update"
+    echo "  sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin"
+    echo ""
+    echo "For other distributions, visit: https://docs.docker.com/engine/install/"
+    echo ""
+    exit 1
+fi
+
+# Check if Docker daemon is running
+if ! docker info &> /dev/null; then
+    echo "❌ Docker daemon is not running!"
+    echo ""
+    echo "🔧 Please start Docker:"
+    echo ""
+    echo "  sudo systemctl start docker"
+    echo "  sudo systemctl enable docker  # Enable auto-start on boot"
+    echo ""
+    echo "💡 If you see permission errors, add your user to the docker group:"
+    echo "  sudo usermod -aG docker \$USER"
+    echo "  newgrp docker  # Or log out and back in"
+    echo ""
+    exit 1
+fi
+
+# Detect docker-compose command
+DOCKER_COMPOSE_CMD=$(detect_docker_compose)
+if [ $? -ne 0 ]; then
+    echo "❌ Docker Compose is not installed!"
+    echo ""
+    echo "📦 Please install Docker Compose:"
+    echo ""
+    echo "For Ubuntu/Debian (recommended - installs Docker Compose v2):"
+    echo "  sudo apt-get install -y docker-compose-plugin"
+    echo ""
+    echo "Alternatively, install standalone docker-compose:"
+    echo "  sudo curl -L \"https://github.com/docker/compose/releases/latest/download/docker-compose-\$(uname -s)-\$(uname -m)\" -o /usr/local/bin/docker-compose"
+    echo "  sudo chmod +x /usr/local/bin/docker-compose"
+    echo ""
+    exit 1
+fi
+
+echo "✅ Docker is installed and running"
+echo "✅ Using: $DOCKER_COMPOSE_CMD"
+echo ""
+
 # Check for .env file
 if [ ! -f .env ]; then
     echo "📝 Creating .env file from template..."
@@ -63,11 +133,11 @@ fi
 
 echo ""
 echo "📦 Building Docker images..."
-docker-compose $COMPOSE_FILES build
+$DOCKER_COMPOSE_CMD $COMPOSE_FILES build
 
 echo ""
 echo "🚀 Starting services in $MODE mode..."
-docker-compose $COMPOSE_FILES up -d smo-db smo-agent smo-web
+$DOCKER_COMPOSE_CMD $COMPOSE_FILES up -d smo-db smo-agent smo-web
 
 echo ""
 echo "⏳ Waiting for services to be ready..."
@@ -90,18 +160,18 @@ fi
 echo ""
 echo "💻 To run the TUI:"
 if [ "$choice" = "2" ]; then
-    echo "  docker-compose -f docker-compose.yml -f docker-compose.host.yml run --rm smo-tui"
+    echo "  $DOCKER_COMPOSE_CMD -f docker-compose.yml -f docker-compose.host.yml run --rm smo-tui"
 else
-    echo "  docker-compose run --rm smo-tui"
+    echo "  $DOCKER_COMPOSE_CMD run --rm smo-tui"
 fi
 
 echo ""
 echo "📋 View logs:"
-echo "  docker-compose $COMPOSE_FILES logs -f"
+echo "  $DOCKER_COMPOSE_CMD $COMPOSE_FILES logs -f"
 
 echo ""
 echo "🛑 Stop services:"
-echo "  docker-compose $COMPOSE_FILES down"
+echo "  $DOCKER_COMPOSE_CMD $COMPOSE_FILES down"
 
 echo ""
 echo "✨ Setup complete!"

@@ -30,6 +30,22 @@ See [CONTAINERIZATION.md](CONTAINERIZATION.md) for detailed containerization doc
 - 🐋 **Containerized**: Easy deployment with Docker Compose
 - 🖧 **Host Monitoring**: Support for monitoring actual host machine metrics
 
+## Prerequisites
+
+Before using SMO, you need:
+
+- **Docker Engine** (20.10.0 or later) - [Installation Guide](https://docs.docker.com/engine/install/)
+- **Docker Compose** (v1.27.0+ or Docker Compose plugin v2.0.0+)
+- **Linux** (for host metrics mode) or any OS with Docker support (for container metrics mode)
+
+**Quick check:**
+```bash
+docker --version
+docker compose version  # or: docker-compose --version
+```
+
+If Docker is not installed, the setup script will provide installation instructions for your system.
+
 ## Docker Compose Setup
 
 The application is orchestrated using Docker Compose. The following services are defined:
