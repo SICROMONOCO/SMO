@@ -14,7 +14,7 @@ echo ""
 detect_docker_compose() {
     if command -v docker-compose &> /dev/null; then
         echo "docker-compose"
-    elif docker compose version &> /dev/null 2>&1; then
+    elif docker compose version &> /dev/null; then
         echo "docker compose"
     else
         return 1
@@ -34,7 +34,12 @@ if ! command -v docker &> /dev/null; then
     echo "  sudo install -m 0755 -d /etc/apt/keyrings"
     echo "  curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg"
     echo "  sudo chmod a+r /etc/apt/keyrings/docker.gpg"
-    echo "  echo \"deb [arch=\$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \$(. /etc/os-release && echo \"\$VERSION_CODENAME\") stable\" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null"
+    echo ""
+    echo "  # Add Docker repository"
+    echo "  echo \"deb [arch=\$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \\"
+    echo "    https://download.docker.com/linux/ubuntu \$(. /etc/os-release && echo \"\$VERSION_CODENAME\") stable\" | \\"
+    echo "    sudo tee /etc/apt/sources.list.d/docker.list > /dev/null"
+    echo ""
     echo "  sudo apt-get update"
     echo "  sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin"
     echo ""
