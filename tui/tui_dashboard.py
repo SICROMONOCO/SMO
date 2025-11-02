@@ -451,7 +451,7 @@ class TUIDashboardApp(App):
                         yield RadioButton("JSON", value=True)
                         yield RadioButton("CSV")
                         yield RadioButton("Markdown")
-                    yield Input(placeholder="~/smo_export/metrics.json (or /tmp/export.json)", id="export_path")
+                    yield Input(placeholder="~/exports/metrics.json", id="export_path")
                     yield Button("Export", variant="primary", id="export_logs")
             
         # Fixed bottom bar for alerts

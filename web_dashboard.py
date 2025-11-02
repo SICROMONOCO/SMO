@@ -6,9 +6,11 @@ import asyncio
 import json
 import os
 import yaml
+import tempfile
 from pathlib import Path
 from influxdb_client.client.influxdb_client_async import InfluxDBClientAsync
 from starlette.websockets import WebSocketDisconnect, WebSocketState
+from starlette.background import BackgroundTask
 from typing import Dict, Any
 import csv
 from io import StringIO
@@ -1136,6 +1138,11 @@ async def reset_config():
 async def export_logs(format: str = "json", filename: str = "smo_metrics_export"):
     """Export logs in specified format."""
     try:
+        # Validate format against allowlist
+        allowed_formats = ["json", "csv", "markdown"]
+        if format not in allowed_formats:
+            raise HTTPException(status_code=400, detail=f"Invalid format. Use one of: {', '.join(allowed_formats)}")
+        
         if not METRICS_LOG_PATH.exists():
             raise HTTPException(status_code=404, detail="Metrics log file not found")
         
@@ -1162,13 +1169,8 @@ async def export_logs(format: str = "json", filename: str = "smo_metrics_export"
         elif format == "markdown":
             content = _logs_to_markdown(logs)
             media_type = "text/markdown"
-        else:
-            raise HTTPException(status_code=400, detail="Invalid format. Use 'json', 'csv', or 'markdown'")
         
         # Create temporary file for download with cleanup task
-        import tempfile
-        from starlette.background import BackgroundTask
-        
         with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix=f'.{format}') as tmp:
             tmp.write(content)
             tmp_path = tmp.name
