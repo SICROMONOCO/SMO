@@ -1031,6 +1031,29 @@ html = """
             
             // WebSocket configuration
             const RECONNECT_DELAY_MS = 5000;
+            let reconnectAttempts = 0;
+            let dataReceived = false;
+            
+            // Show connection error in all metric panels
+            function showConnectionError(message) {
+                const errorHtml = `
+                    <div class="no-data" style="color: #ff6b6b;">
+                        <div style="font-size: 2em; margin-bottom: 10px;">⚠️</div>
+                        <div style="font-weight: bold; margin-bottom: 10px;">${message}</div>
+                        <div style="color: #888; font-size: 0.9em;">
+                            Check that InfluxDB is running and the agent is collecting metrics.<br>
+                            See browser console for details.
+                        </div>
+                    </div>
+                `;
+                
+                document.getElementById('cpu-content').innerHTML = errorHtml;
+                document.getElementById('memory-content').innerHTML = errorHtml;
+                document.getElementById('disk-content').innerHTML = errorHtml;
+                document.getElementById('network-content').innerHTML = errorHtml;
+                document.getElementById('system-content').innerHTML = errorHtml;
+                document.getElementById('process-content').innerHTML = errorHtml;
+            }
             
             // Determine WebSocket protocol based on page protocol
             const wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
@@ -1042,7 +1065,23 @@ html = """
                     
                     if (data.error) {
                         console.error('Error from server:', data.error);
+                        showConnectionError(data.error);
+                        if (data.suggestion) {
+                            console.error('Suggestion:', data.suggestion);
+                        }
+                        if (data.url) {
+                            console.error('InfluxDB URL:', data.url);
+                        }
+                        if (data.bucket) {
+                            console.error('Bucket:', data.bucket);
+                        }
                         return;
+                    }
+                    
+                    // Mark that we've received data
+                    if (!dataReceived) {
+                        dataReceived = true;
+                        console.log('✓ Successfully connected to metrics stream');
                     }
                     
                     // Update each metric group
@@ -1061,14 +1100,29 @@ html = """
             
             ws.onerror = function(error) {
                 console.error('WebSocket error:', error);
+                showConnectionError('WebSocket connection error');
             };
             
             ws.onclose = function() {
-                console.log('WebSocket connection closed');
+                console.log('WebSocket connection closed. Reconnecting in ' + (RECONNECT_DELAY_MS / 1000) + ' seconds...');
+                reconnectAttempts++;
+                
+                if (!dataReceived) {
+                    showConnectionError('Connection to metrics server lost');
+                }
+                
                 setTimeout(() => {
                     location.reload();
                 }, RECONNECT_DELAY_MS);
             };
+            
+            // Timeout to check if we've received any data after 10 seconds
+            setTimeout(() => {
+                if (!dataReceived) {
+                    console.warn('No metrics data received after 10 seconds');
+                    showConnectionError('No metrics data available');
+                }
+            }, 10000);
         </script>
     </body>
 </html>
