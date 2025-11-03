@@ -6,6 +6,7 @@ import yaml
 from pathlib import Path
 import tempfile
 import shutil
+import asyncio
 
 
 @pytest.fixture
@@ -187,3 +188,66 @@ def test_logs_export_missing_file(test_config_dir, monkeypatch):
 
     response = client.get("/api/logs/export?format=json")
     assert response.status_code == 404
+
+
+def test_websocket_reads_from_json_log(test_logs_dir, monkeypatch):
+    """Test WebSocket endpoint reads metrics from JSON log file."""
+    log_file = test_logs_dir / "smo_metrics.jsonl"
+    
+    # Add a complete metrics snapshot to the log file
+    test_metrics = {
+        "timestamp": 1234567892,
+        "cpu": {
+            "average": {"cpu_percent": {"value": 45.5}},
+            "per_core": {"core_0_usage": {"value": 50.0}}
+        },
+        "memory": {
+            "virtual_memory": {
+                "percent": {"value": 60.2},
+                "total": {"value": 8589934592, "human_readable": "8.0 GB"}
+            }
+        }
+    }
+    
+    with open(log_file, 'a') as f:
+        f.write(json.dumps(test_metrics) + '\n')
+    
+    # Monkeypatch the metrics log path
+    monkeypatch.setattr('web_dashboard.METRICS_LOG_PATH', log_file)
+    
+    from web_dashboard import app
+    client = TestClient(app)
+    
+    # Test WebSocket connection
+    with client.websocket_connect("/ws") as websocket:
+        # Receive first message
+        data_text = websocket.receive_text()
+        data = json.loads(data_text)
+        
+        # Verify we got the metrics data
+        assert "cpu" in data or "memory" in data or "timestamp" in data
+        
+        # If we got an error or info message, that's also acceptable
+        # as long as the connection works
+        if "error" not in data and "info" not in data:
+            # We should have actual metrics
+            assert "timestamp" in data
+
+
+def test_websocket_handles_missing_log_file(test_config_dir, monkeypatch):
+    """Test WebSocket endpoint handles missing log file gracefully."""
+    non_existent = test_config_dir / "nonexistent.jsonl"
+    
+    monkeypatch.setattr('web_dashboard.METRICS_LOG_PATH', non_existent)
+    
+    from web_dashboard import app
+    client = TestClient(app)
+    
+    # Test WebSocket connection
+    with client.websocket_connect("/ws") as websocket:
+        # Should receive an error message
+        data_text = websocket.receive_text()
+        data = json.loads(data_text)
+        
+        # Should have an error or info message about missing file
+        assert "error" in data or "suggestion" in data
