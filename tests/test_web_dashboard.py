@@ -14,9 +14,9 @@ def test_config_dir():
     temp_dir = tempfile.mkdtemp()
     config_dir = Path(temp_dir) / "config"
     config_dir.mkdir(parents=True, exist_ok=True)
-    
+
     yield config_dir
-    
+
     # Cleanup
     shutil.rmtree(temp_dir, ignore_errors=True)
 
@@ -27,20 +27,20 @@ def test_logs_dir():
     temp_dir = tempfile.mkdtemp()
     logs_dir = Path(temp_dir) / "logs"
     logs_dir.mkdir(parents=True, exist_ok=True)
-    
+
     # Create test log file
     log_file = logs_dir / "smo_metrics.jsonl"
     test_logs = [
         {"timestamp": 1234567890, "cpu": {"value": 45.5}},
         {"timestamp": 1234567891, "memory": {"value": 60.2}},
     ]
-    
+
     with open(log_file, 'w') as f:
         for log in test_logs:
             f.write(json.dumps(log) + '\n')
-    
+
     yield logs_dir
-    
+
     # Cleanup
     shutil.rmtree(temp_dir, ignore_errors=True)
 
@@ -53,21 +53,21 @@ def test_config_get_endpoint(test_config_dir, monkeypatch):
         "refresh": {"cpu": 2, "memory": 5},
         "alerts": {"cpu_percent": 80}
     }
-    
+
     with open(config_file, 'w') as f:
         yaml.safe_dump(test_config, f)
-    
+
     # Monkeypatch the config path
     monkeypatch.setattr('web_dashboard.CONFIG_PATH', config_file)
-    
+
     # Import after monkeypatch
     from web_dashboard import app
     client = TestClient(app)
-    
+
     # Test the endpoint
     response = client.get("/api/config")
     assert response.status_code == 200
-    
+
     data = response.json()
     assert "refresh" in data
     assert data["refresh"]["cpu"] == 2
@@ -77,30 +77,30 @@ def test_config_get_endpoint(test_config_dir, monkeypatch):
 def test_config_post_endpoint(test_config_dir, monkeypatch):
     """Test POST /api/config endpoint."""
     config_file = test_config_dir / "config.yaml"
-    
+
     # Monkeypatch the config path
     monkeypatch.setattr('web_dashboard.CONFIG_PATH', config_file)
-    
+
     from web_dashboard import app
     client = TestClient(app)
-    
+
     # Create new config
     new_config = {
         "refresh": {"cpu": 3, "memory": 6},
         "alerts": {"cpu_percent": 90}
     }
-    
+
     response = client.post(
         "/api/config",
         json={"config": new_config}
     )
     assert response.status_code == 200
-    
+
     # Verify config was saved
     assert config_file.exists()
     with open(config_file, 'r') as f:
         saved_config = yaml.safe_load(f)
-    
+
     assert saved_config["refresh"]["cpu"] == 3
     assert saved_config["alerts"]["cpu_percent"] == 90
 
@@ -108,17 +108,17 @@ def test_config_post_endpoint(test_config_dir, monkeypatch):
 def test_logs_export_json(test_logs_dir, monkeypatch):
     """Test log export in JSON format."""
     log_file = test_logs_dir / "smo_metrics.jsonl"
-    
+
     # Monkeypatch the metrics log path
     monkeypatch.setattr('web_dashboard.METRICS_LOG_PATH', log_file)
-    
+
     from web_dashboard import app
     client = TestClient(app)
-    
+
     response = client.get("/api/logs/export?format=json&filename=test_export")
     assert response.status_code == 200
     assert response.headers["content-type"] == "application/json"
-    
+
     # Verify content - FileResponse returns bytes, so parse it
     data = json.loads(response.content.decode('utf-8'))
     assert len(data) == 2
@@ -128,16 +128,16 @@ def test_logs_export_json(test_logs_dir, monkeypatch):
 def test_logs_export_csv(test_logs_dir, monkeypatch):
     """Test log export in CSV format."""
     log_file = test_logs_dir / "smo_metrics.jsonl"
-    
+
     monkeypatch.setattr('web_dashboard.METRICS_LOG_PATH', log_file)
-    
+
     from web_dashboard import app
     client = TestClient(app)
-    
+
     response = client.get("/api/logs/export?format=csv&filename=test_export")
     assert response.status_code == 200
     assert "text/csv" in response.headers["content-type"]
-    
+
     # Verify CSV content
     content = response.text
     assert "timestamp" in content
@@ -147,16 +147,16 @@ def test_logs_export_csv(test_logs_dir, monkeypatch):
 def test_logs_export_markdown(test_logs_dir, monkeypatch):
     """Test log export in Markdown format."""
     log_file = test_logs_dir / "smo_metrics.jsonl"
-    
+
     monkeypatch.setattr('web_dashboard.METRICS_LOG_PATH', log_file)
-    
+
     from web_dashboard import app
     client = TestClient(app)
-    
+
     response = client.get("/api/logs/export?format=markdown&filename=test_export")
     assert response.status_code == 200
     assert "text/markdown" in response.headers["content-type"]
-    
+
     # Verify markdown table format
     content = response.text
     assert "|" in content
@@ -166,12 +166,12 @@ def test_logs_export_markdown(test_logs_dir, monkeypatch):
 def test_logs_export_invalid_format(test_logs_dir, monkeypatch):
     """Test log export with invalid format."""
     log_file = test_logs_dir / "smo_metrics.jsonl"
-    
+
     monkeypatch.setattr('web_dashboard.METRICS_LOG_PATH', log_file)
-    
+
     from web_dashboard import app
     client = TestClient(app)
-    
+
     response = client.get("/api/logs/export?format=invalid")
     assert response.status_code == 400
 
@@ -179,11 +179,11 @@ def test_logs_export_invalid_format(test_logs_dir, monkeypatch):
 def test_logs_export_missing_file(test_config_dir, monkeypatch):
     """Test log export when log file doesn't exist."""
     non_existent = test_config_dir / "nonexistent.jsonl"
-    
+
     monkeypatch.setattr('web_dashboard.METRICS_LOG_PATH', non_existent)
-    
+
     from web_dashboard import app
     client = TestClient(app)
-    
+
     response = client.get("/api/logs/export?format=json")
     assert response.status_code == 404

@@ -1,6 +1,6 @@
 """Central metrics registry.
 
-This module imports the per-area metric providers (cpu, memory, diskes, networks)
+This module imports the per-area metric providers (cpu, memory, disks, networks)
 and exposes a unified registry API so the rest of the framework can fetch a
 single JSON-serializable dict of all metrics.
 
@@ -19,13 +19,13 @@ import time
 import math
 import enum
 import threading
-from typing import Any, Callable, Dict
+from typing import Any, Callable
 
 try:
     # when imported as package: use relative imports
     from . import cpu as cpu_mod
     from . import memory as memory_mod
-    from . import diskes as disk_mod
+    from . import disks as disk_mod
     from . import networks as net_mod
     from . import process as process_mod
 except ImportError:  # pragma: no cover - allow running file directly
@@ -45,21 +45,22 @@ except ImportError:  # pragma: no cover - allow running file directly
     # Import from the local 'metrics' package when executed outside a package
     cpu_mod = importlib.import_module("metrics.cpu")
     memory_mod = importlib.import_module("metrics.memory")
-    disk_mod = importlib.import_module("metrics.diskes")
+    disk_mod = importlib.import_module("metrics.disks")
     net_mod = importlib.import_module("metrics.networks")
     process_mod = importlib.import_module("metrics.process")
 
 # Registry of provider functions: name -> callable returning dict
-_PROVIDERS = {}  # existing provider registry
-_LATEST = {}
-_LOCK = threading.RLock()
+_PROVIDERS: dict[str, Callable] = {}
 _LATEST: dict[str, dict] = {}  # cache of most recent results
 _LAST_UPDATE: dict[str, float] = {}
+_LOCK = threading.RLock()
+
 
 def set_latest(name: str, data: dict):
     """Save the latest snapshot for a provider."""
     _LATEST[name] = data
     _LAST_UPDATE[name] = time.time()
+
 
 def get_latest(name: str) -> dict | None:
     """Get last known snapshot for a provider."""
@@ -70,23 +71,15 @@ def register_provider(name: str, func: callable):
     with _LOCK:
         _PROVIDERS[name] = func
 
+
 def get_provider(name: str):
     with _LOCK:
         return _PROVIDERS.get(name)
 
+
 def get_providers():
     with _LOCK:
         return list(_PROVIDERS.keys())
-
-def set_latest(name: str, value):
-    with _LOCK:
-        _LATEST[name] = value
-
-def gather_all():
-    with _LOCK:
-        # return a shallow copy to avoid callers mutating internal state
-        combined = {k: _LATEST.get(k) for k in _PROVIDERS.keys()}
-    return combined
 
 
 def to_primitive(obj: Any, _seen: set | None = None) -> Any:
@@ -222,5 +215,3 @@ register("disk", disk_mod.get_disk_metrics)
 register("network", net_mod.get_network_metrics)
 register("process", process_mod.gather)
 
-
-    

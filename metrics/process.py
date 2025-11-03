@@ -17,24 +17,24 @@ _thread_count = threading.active_count()
 def gather() -> Dict[str, Any]:
     """Gather metrics about the SMO process itself."""
     global _thread_count
-    
+
     try:
         # Update thread count
         current_threads = threading.active_count()
         thread_delta = current_threads - _thread_count
         _thread_count = current_threads
-        
+
         # Initialize CPU percent (first call will return 0.0)
         _process.cpu_percent()
         # Wait a bit to get a real measurement
         time.sleep(0.1)
-        
+
         with _process.oneshot():  # More efficient collection of multiple metrics
             cpu_percent = _process.cpu_percent()
             mem_info = _process.memory_info()
             io_counters = _process.io_counters()
             mem_percent = _process.memory_percent()
-            
+
             return {
                 "type": "dynamic",
                 "pid": _process.pid,

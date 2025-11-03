@@ -61,14 +61,14 @@ class NetworkIOGroup(MetricGroup):
             bytes_recv_val = io_counters.get("bytes_recv", {}).get("value", 0)
             packets_sent_val = io_counters.get("packets_sent", {}).get("value", 0)
             packets_recv_val = io_counters.get("packets_recv", {}).get("value", 0)
-            
+
             # Check for alerts
             bytes_sent_alert = io_counters.get("bytes_sent", {}).get("alert")
-            
+
             # Format bytes
             bytes_sent = self._format_bytes(bytes_sent_val)
             bytes_recv = self._format_bytes(bytes_recv_val)
-            
+
             # Data transfer
             io_data_text = Text()
             io_data_text.append("Sent: ", style="dim")
@@ -78,9 +78,9 @@ class NetworkIOGroup(MetricGroup):
             io_data_text.append("  ", style="dim")
             io_data_text.append("Recv: ", style="dim")
             io_data_text.append(bytes_recv, style="cyan")
-            
+
             table.add_row("Data Transfer:", io_data_text)
-            
+
             # Packets
             io_packets_text = Text()
             io_packets_text.append("Sent: ", style="dim")
@@ -88,15 +88,15 @@ class NetworkIOGroup(MetricGroup):
             io_packets_text.append("  ", style="dim")
             io_packets_text.append("Recv: ", style="dim")
             io_packets_text.append(self._format_count(packets_recv_val), style="cyan")
-            
+
             table.add_row("Packets:", io_packets_text)
-            
+
             # Errors and drops (only show if > 0)
             errin = io_counters.get("errin", {}).get("value", 0)
             errout = io_counters.get("errout", {}).get("value", 0)
             dropin = io_counters.get("dropin", {}).get("value", 0)
             dropout = io_counters.get("dropout", {}).get("value", 0)
-            
+
             if errin > 0 or errout > 0 or dropin > 0 or dropout > 0:
                 errors_text = Text()
                 if errin > 0 or errout > 0:
@@ -113,27 +113,27 @@ class NetworkIOGroup(MetricGroup):
                     errors_text.append("  ", style="dim")
                     errors_text.append("Drop Out: ", style="dim")
                     errors_text.append(str(dropout), style="magenta")
-                
+
                 table.add_row("Errors/Drops:", errors_text)
 
         # --- Active Interfaces (up and with traffic) ---
         iface_stats = net_data.get("stats", {}).get("interfaces", {})
         iface_addresses = net_data.get("interfaces", {}).get("interfaces", {})
         pernic_io = net_data.get("io_counters_pernic", {}).get("metrics", {})
-        
+
         # Find active interfaces (up, not loopback, with significant traffic)
         active_interfaces = []
         for iface_name, stats in iface_stats.items():
             is_up = stats.get("metrics", {}).get("isup", {}).get("value", False)
             is_loopback = "loopback" in iface_name.lower()
-            
+
             if is_up and not is_loopback:
                 # Get I/O for this interface
                 iface_io = pernic_io.get(iface_name, {}).get("metrics", {})
                 bytes_sent = iface_io.get("bytes_sent", {}).get("value", 0) if iface_io else 0
                 bytes_recv = iface_io.get("bytes_recv", {}).get("value", 0) if iface_io else 0
                 total_traffic = bytes_sent + bytes_recv
-                
+
                 active_interfaces.append({
                     "name": iface_name,
                     "stats": stats.get("metrics", {}),
@@ -141,24 +141,24 @@ class NetworkIOGroup(MetricGroup):
                     "io": iface_io,
                     "traffic": total_traffic
                 })
-        
+
         # Sort by traffic (most active first)
         active_interfaces.sort(key=lambda x: x["traffic"], reverse=True)
-        
+
         # Display active interfaces (limit to top 3 most active)
         for idx, iface in enumerate(active_interfaces[:3]):
             iface_name = iface["name"]
             iface_stats_data = iface["stats"]
             addresses = iface["addresses"]
             iface_io = iface["io"]
-            
+
             # Interface name and status
             status_text = Text()
             status_text.append(iface_name, style="bold")
             status_text.append(" ✓", style="green")
-            
+
             table.add_row(f"Interface {idx + 1}:", status_text)
-            
+
             # IP and MAC addresses
             ipv4, mac = self._get_ip_address(addresses)
             if ipv4 or mac:
@@ -172,7 +172,7 @@ class NetworkIOGroup(MetricGroup):
                     addr_text.append("MAC: ", style="dim")
                     addr_text.append(mac, style="dim")
                 table.add_row("", addr_text)
-            
+
             # Speed and MTU
             speed = iface_stats_data.get("speed", {}).get("value", 0)
             mtu = iface_stats_data.get("mtu", {}).get("value", 0)
@@ -187,14 +187,14 @@ class NetworkIOGroup(MetricGroup):
                     stats_text.append("MTU: ", style="dim")
                     stats_text.append(str(mtu), style="cyan")
                 table.add_row("", stats_text)
-            
+
             # Per-interface I/O
             if iface_io:
                 bytes_sent_val = iface_io.get("bytes_sent", {}).get("value", 0)
                 bytes_recv_val = iface_io.get("bytes_recv", {}).get("value", 0)
                 packets_sent_val = iface_io.get("packets_sent", {}).get("value", 0)
                 packets_recv_val = iface_io.get("packets_recv", {}).get("value", 0)
-                
+
                 if bytes_sent_val > 0 or bytes_recv_val > 0:
                     iface_io_text = Text()
                     iface_io_text.append("TX: ", style="dim")
@@ -205,7 +205,7 @@ class NetworkIOGroup(MetricGroup):
                     iface_io_text.append("  ", style="dim")
                     iface_io_text.append("Pkts: ", style="dim")
                     iface_io_text.append(f"{self._format_count(packets_sent_val)}/{self._format_count(packets_recv_val)}", style="dim")
-                    
+
                     table.add_row("", iface_io_text)
 
         # Show count of total interfaces if there are more than 3

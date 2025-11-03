@@ -11,7 +11,6 @@ Features:
   - Handles graceful shutdown via Ctrl+C
 """
 
-import os
 import sys
 import time
 import threading
@@ -21,16 +20,16 @@ import argparse
 import yaml
 import subprocess
 import platform
-from logger import logger
-from updater import start_all
-from metrics import registry
-import psutil
-import rich
-import pathlib
+from datetime import datetime
+from pathlib import Path
 from rich.logging import RichHandler
 from rich import print as rprint
 from rich.console import Console
 from rich.pretty import Pretty
+
+from logger import logger
+from updater import start_all
+from metrics import registry
 
 # Central console for controlled, pretty printing
 console = Console(highlight=True, markup=True)
@@ -38,7 +37,7 @@ console = Console(highlight=True, markup=True)
 # ---------------------------------------------------------------------------
 # Configuration Loader
 # ---------------------------------------------------------------------------
-PROJECT_ROOT = pathlib.Path(__file__).resolve().parent  # SMO directory is the root
+PROJECT_ROOT = Path(__file__).resolve().parent  # SMO directory is the root
 CONFIG_PATH = PROJECT_ROOT / "config" / "config.yaml"
 
 DEFAULT_CONFIG = {
@@ -83,8 +82,8 @@ def load_config() -> dict:
         rprint(f"[green]✓[/] Loaded config from [cyan]{CONFIG_PATH}[/]")
         return merged
     except Exception as e:
-        rprint(f"[red]✗[/] Failed to load config: [yellow]{e}[/]")
-        rprint(f"[yellow]⚠[/] Using default configuration")
+        rprint(f"[red]✗[/] Failed to load config: {e}")
+        rprint("[yellow]⚠[/] Using default configuration")
         return DEFAULT_CONFIG
 
 
@@ -111,18 +110,18 @@ from datetime import datetime
 def _print_snapshot_info(snapshot: dict, active_alerts=None):
     ts = snapshot.get("timestamp", time.time())
     dt = datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S")
-    
+
     # System metrics
     cpu_avg = snapshot.get("cpu", {}).get("average", {}).get("cpu_percent", {}).get("value")
     mem_pct = snapshot.get("memory", {}).get("virtual_memory", {}).get("percent", {}).get("value")
-    
+
     # Agent process metrics
     process_data = snapshot.get("process", {})
     agent_cpu = process_data.get("cpu", {}).get("value")
     agent_mem = process_data.get("memory", {}).get("percent", {}).get("value")
     agent_threads = process_data.get("threads", {}).get("count", {}).get("value")
     agent_uptime = process_data.get("uptime", {}).get("value")
-    
+
     # For debugging
     if not process_data:
         logging.warning("[yellow]⚠[/] No process metrics available in snapshot")
@@ -143,13 +142,13 @@ def _print_snapshot_info(snapshot: dict, active_alerts=None):
 
     # Build the display string
     info = f"🕒 [bold cyan]{dt}[/] | "
-    
+
     # System metrics
     if cpu_avg is not None:
         info += f"Sys CPU: [bold yellow]{cpu_avg}%[/] "
     if mem_pct is not None:
         info += f"| Sys Mem: [bold green]{mem_pct}%[/]"
-    
+
     info += "\n🔍 Agent: "
     # Agent metrics
     if agent_cpu is not None:
@@ -217,7 +216,7 @@ def run_agent(config: dict, print_console: bool = False):
         logging.exception("[red]✗[/] Agent loop crashed unexpectedly.")
     finally:
         rprint("[bold blue]🧩[/] [blue]SMO Agent stopped cleanly.[/]")
-    
+
 
 
 
@@ -228,23 +227,23 @@ def run_agent(config: dict, print_console: bool = False):
 def open_log_file():
     """Open the log file with the system's default editor or a pager."""
     log_file = PROJECT_ROOT / "logs" / "smo_metrics.jsonl"
-    
+
     if not log_file.exists():
         rprint(f"[red]✗[/] Log file not found: [cyan]{log_file}[/]")
         rprint("[yellow]⚠[/] Run 'smo run' first to generate logs.")
         return 1
-    
+
     rprint(f"[cyan]📂[/] Opening log file: [bold]{log_file}[/]")
-    
+
     # Try to open with a reasonable editor/viewer
     system = platform.system().lower()
-    
+
     if system == "linux":
         # Prefer pagers/readers for log files, then editors
         # Try less first (best for log files), then other options
         viewers = ["less", "more", "cat"]
         editors = ["xdg-open", "gedit", "nano", "vim"]
-        
+
         # Try viewers first (non-interactive check by using which)
         for viewer in viewers:
             try:
@@ -255,7 +254,7 @@ def open_log_file():
                     return 0
             except FileNotFoundError:
                 continue
-        
+
         # Try editors as fallback
         for editor in editors:
             try:
@@ -266,7 +265,7 @@ def open_log_file():
                     return 0
             except FileNotFoundError:
                 continue
-        
+
         # Fallback: just show file location and content preview
         rprint(f"[yellow]⚠[/] Could not find a suitable viewer. File location: [cyan]{log_file}[/]")
         rprint(f"[dim]File size: {log_file.stat().st_size} bytes[/]")
@@ -316,7 +315,7 @@ def run_tui():
 
 def main():
     parser = argparse.ArgumentParser(prog="smo", description="System Monitoring Observer (SMO) Agent")
-    parser.add_argument("command", choices=["run", "once", "logs", "tui"], 
+    parser.add_argument("command", choices=["run", "once", "logs", "tui"],
                        help="run = continuous mode, once = single snapshot, logs = view log file, tui = launch TUI dashboard")
     parser.add_argument("--print", dest="print", action="store_true", help="print snapshots to console in run mode")
     args = parser.parse_args()
