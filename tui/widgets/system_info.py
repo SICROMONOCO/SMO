@@ -25,7 +25,7 @@ class SystemInfoGroup(MetricGroup):
         days = delta.days
         hours, remainder = divmod(delta.seconds, 3600)
         minutes, seconds = divmod(remainder, 60)
-        
+
         parts = []
         if days > 0:
             parts.append(f"{days}d")
@@ -58,22 +58,22 @@ class SystemInfoGroup(MetricGroup):
             os_release = platform.release()
             os_version = platform.version()
             hostname = socket.gethostname()
-            
+
             sys_text = Text()
             sys_text.append(f"{os_name} {os_release}", style="bold")
             table.add_row("OS:", sys_text)
-            
+
             host_text = Text()
             host_text.append(hostname, style="bold green")
             table.add_row("Hostname:", host_text)
-            
+
             # Boot time
             try:
                 boot_time = psutil.boot_time()
                 boot_dt = datetime.fromtimestamp(boot_time)
                 boot_str = boot_dt.strftime("%Y-%m-%d %H:%M:%S")
                 table.add_row("Boot Time:", boot_str)
-                
+
                 # System uptime
                 system_uptime = datetime.now().timestamp() - boot_time
                 uptime_str = self._format_uptime(system_uptime)
@@ -82,11 +82,11 @@ class SystemInfoGroup(MetricGroup):
                 table.add_row("System Uptime:", uptime_text)
             except Exception:
                 pass
-            
+
             # Python version
             python_ver = platform.python_version()
             table.add_row("Python:", f"v{python_ver}")
-            
+
         except Exception:
             pass
 
@@ -119,7 +119,7 @@ class SystemInfoGroup(MetricGroup):
                 pid_text = Text()
                 pid_text.append(str(pid), style="bold yellow")
                 table.add_row("Process PID:", pid_text)
-            
+
             # Process uptime
             process_uptime = process_data.get("uptime", {}).get("value")
             if process_uptime is not None:
@@ -127,14 +127,14 @@ class SystemInfoGroup(MetricGroup):
                 uptime_text = Text()
                 uptime_text.append(uptime_str, style="green")
                 table.add_row("Process Uptime:", uptime_text)
-            
+
             # Process threads
             threads = process_data.get("threads", {}).get("count", {}).get("value")
             if threads is not None:
                 threads_text = Text()
                 threads_text.append(str(threads), style="cyan")
                 table.add_row("Threads:", threads_text)
-            
+
             # Process memory (RSS)
             proc_mem = process_data.get("memory", {})
             if proc_mem:
@@ -142,15 +142,15 @@ class SystemInfoGroup(MetricGroup):
                 if rss:
                     rss_str = self._format_bytes(rss)
                     table.add_row("Process Memory:", rss_str)
-        
+
         # --- Disk Info (Partition list) ---
         disk_data = metrics.get("disk", {})
         # Check for partitions in different possible locations
         partitions_data = disk_data.get("partitions", {})
         if not partitions_data:
             # Check top-level keys that might be partitions
-            partition_keys = [k for k in disk_data.keys() 
-                             if k not in ("io_counters", "io_counters_perdisk") 
+            partition_keys = [k for k in disk_data.keys()
+                             if k not in ("io_counters", "io_counters_perdisk")
                              and isinstance(disk_data.get(k), dict)]
             if partition_keys:
                 partitions_list = []
@@ -159,7 +159,7 @@ class SystemInfoGroup(MetricGroup):
                     device = part.get("device", key)
                     fstype = part.get("fstype", "unknown")
                     partitions_list.append(f"{device} ({fstype})")
-                
+
                 if partitions_list:
                     partitions_text = Text()
                     partitions_text.append(", ".join(partitions_list), style="dim")

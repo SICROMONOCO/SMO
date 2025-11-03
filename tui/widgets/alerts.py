@@ -22,19 +22,19 @@ class AlertsGroup(MetricGroup):
         if not isinstance(metrics, dict):
             logger.debug("Metrics is not a dict")
             return
-            
+
         # Alerts can come from two places:
         # 1. Direct alerts array in snapshot["alerts"]
         # 2. Alert fields attached to individual metrics
-        
+
         alerts = []
         logger.debug(f"Processing alerts from metrics, has 'alerts' key: {'alerts' in metrics}")
-        
+
         try:
             # Check for top-level alerts array
             if "alerts" in metrics and isinstance(metrics["alerts"], list):
                 alerts.extend(metrics["alerts"])
-            
+
             # Check for alerts attached to specific metrics
             # CPU alerts
             cpu_alert = metrics.get("cpu", {}).get("average", {}).get("cpu_percent", {}).get("alert")
@@ -43,7 +43,7 @@ class AlertsGroup(MetricGroup):
                     "metric": "cpu_percent",
                     **cpu_alert
                 })
-            
+
             # Memory alerts
             mem_alert = metrics.get("memory", {}).get("virtual_memory", {}).get("percent", {}).get("alert")
             if mem_alert and isinstance(mem_alert, dict):
@@ -51,7 +51,7 @@ class AlertsGroup(MetricGroup):
                     "metric": "memory_percent",
                     **mem_alert
                 })
-            
+
             # Disk alerts - check all partitions
             disk_data = metrics.get("disk", {})
             if isinstance(disk_data, dict):
@@ -69,7 +69,7 @@ class AlertsGroup(MetricGroup):
                                     "metric": f"disk_usage:{dev}",
                                     **disk_alert
                                 })
-            
+
             # Network alerts
             net_alert = metrics.get("network", {}).get("io_counters", {}).get("metrics", {}).get("bytes_sent", {}).get("alert")
             if net_alert and isinstance(net_alert, dict):
@@ -77,7 +77,7 @@ class AlertsGroup(MetricGroup):
                     "metric": "network_bytes_sent",
                     **net_alert
                 })
-            
+
             # Check fallback alerts
             if "alerts_fallback" in metrics and isinstance(metrics["alerts_fallback"], list):
                 for fallback_alert in metrics["alerts_fallback"]:
@@ -92,7 +92,7 @@ class AlertsGroup(MetricGroup):
             # Find the Static widget
             static_widget = self.query_one("#alerts-renderable", Static)
             logger.debug(f"Found alerts Static widget, total alerts found: {len(alerts)}")
-            
+
             if not alerts:
                 # Show "No alerts" message with a nice checkmark
                 table = Table(show_header=False, show_edge=False, box=None, padding=(0, 1))
@@ -116,19 +116,19 @@ class AlertsGroup(MetricGroup):
                 padding=(0, 1),
                 expand=True
             )
-            
+
             table.add_column("", width=3, style="bold", no_wrap=True)  # Icon
             table.add_column("Alert Type", style="bold", min_width=15)
             table.add_column("Details", style="", min_width=30)
-            
+
             for alert in alerts:
                 if not isinstance(alert, dict):
                     continue
-                    
+
                 level = str(alert.get("level", "info")).lower()
                 metric = str(alert.get("metric", "unknown"))
                 message = str(alert.get("message", "No message"))
-                
+
                 # Format metric name for display
                 display_metric = metric.replace("_", " ").title()
                 if ":" in display_metric:
@@ -137,7 +137,7 @@ class AlertsGroup(MetricGroup):
                     # Add device info if present
                     if len(parts) > 1:
                         message = f"[{parts[1].strip()}] {message}"
-                
+
                 # Color code and icon by level
                 if level == "error":
                     icon = "🔴"
@@ -151,14 +151,14 @@ class AlertsGroup(MetricGroup):
                     icon = "ℹ️"
                     metric_style = "bold cyan"
                     msg_style = "cyan"
-                
+
                 # Add row with formatted content
                 table.add_row(
                     Text(icon),
                     Text(display_metric, style=metric_style),
                     Text(message, style=msg_style)
                 )
-            
+
             static_widget.update(table)
         except Exception as e:
             # Fallback display on any error

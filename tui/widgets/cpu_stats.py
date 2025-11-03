@@ -40,12 +40,12 @@ class CPUStatsGroup(MetricGroup):
         avg_data = cpu_data.get("average", {}).get("cpu_percent", {})
         avg_load = avg_data.get("value", 0.0)
         alert = avg_data.get("alert")
-        
+
         # Style based on usage
         usage_style = self._get_usage_style(avg_load)
         avg_text = Text(f"{avg_load:.1f}%", style=f"bold {usage_style}")
-        
-        
+
+
         avg_bar = ProgressBar(total=100, completed=avg_load, width=35, style=usage_style)
         main_table.add_row("Average CPU:", avg_bar)
         main_table.add_row("", avg_text)
@@ -64,7 +64,7 @@ class CPUStatsGroup(MetricGroup):
                         core_usages.append((core_idx, usage))
                     except ValueError:
                         continue
-            
+
             if core_usages:
                 # Create compact per-core display with percentages
                 # Format: C0: 0.0%  C1: 0.0%  C2: 16.7%  ...
@@ -78,16 +78,16 @@ class CPUStatsGroup(MetricGroup):
                     core_text.append(f"{usage:5.1f}%", style=style)
                     if idx < len(core_usages) - 1:
                         core_text.append("  ", style="dim")
-                
+
                 main_table.add_row("Per-Core:", core_text)
-                
+
                 # Add visual bars in a compact horizontal layout
                 all_bars = []
                 for core_idx, usage in sorted(core_usages):
                     style = self._get_usage_style(usage)
                     bar = ProgressBar(total=100, completed=usage, width=12, style=style)
                     all_bars.append(bar)
-                
+
                 if all_bars:
                     # Display bars in rows of 4
                     bars_lines = []
@@ -96,7 +96,7 @@ class CPUStatsGroup(MetricGroup):
                         row_bars = all_bars[i:i+cores_per_row]
                         bars_row = Columns(row_bars, equal=True, expand=True, padding=(0, 1))
                         bars_lines.append(bars_row)
-                    
+
                     if len(bars_lines) == 1:
                         main_table.add_row("", bars_lines[0])
                     else:
@@ -147,31 +147,31 @@ class CPUStatsGroup(MetricGroup):
                 elif value >= 1_000:
                     return f"{value / 1_000:.2f}K"
                 return str(value)
-            
+
             stats_text = Text()
             if "ctx_switches" in stats_data:
                 ctx_val = stats_data["ctx_switches"].get("value", 0)
                 stats_text.append("Ctx: ", style="dim")
                 stats_text.append(format_count(ctx_val), style="magenta")
                 stats_text.append("  ")
-            
+
             if "interrupts" in stats_data:
                 int_val = stats_data["interrupts"].get("value", 0)
                 stats_text.append("Int: ", style="dim")
                 stats_text.append(format_count(int_val), style="cyan")
                 stats_text.append("  ")
-            
+
             if "soft_interrupts" in stats_data:
                 soft_val = stats_data["soft_interrupts"].get("value", 0)
                 stats_text.append("Soft: ", style="dim")
                 stats_text.append(format_count(soft_val), style="yellow")
                 stats_text.append("  ")
-            
+
             if "syscalls" in stats_data:
                 sys_val = stats_data["syscalls"].get("value", 0)
                 stats_text.append("Sys: ", style="dim")
                 stats_text.append(format_count(sys_val), style="green")
-            
+
             if stats_text:
                 main_table.add_row("Stats:", stats_text)
 

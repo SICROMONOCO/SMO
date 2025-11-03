@@ -2,9 +2,7 @@
 alerts.py — threshold-based alert system for SMO agent
 """
 
-import time
 import logging
-import json
 from datetime import datetime
 
 
@@ -154,7 +152,7 @@ def process_alerts(snapshot: dict, config: dict, logger=None):
             level = alert.get("level", "warning").lower()
             metric_name = alert.get("metric", "unknown")
             message = alert.get("message", "")
-            
+
             # Format messages with rich markup
             if level == "info":
                 logging.info(f"[blue]ℹ[/] [cyan]{metric_name}[/]: {message}")

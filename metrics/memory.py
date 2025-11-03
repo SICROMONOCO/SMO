@@ -100,8 +100,8 @@ def get_memory_metrics():
             }
         }
     }
-    
+
     # Combine all memory metrics
     memory_metrics = {**virtual_memory, **swap_memory}
-    return memory_metrics     
-    
+    return memory_metrics
+

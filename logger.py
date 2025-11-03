@@ -9,7 +9,10 @@ import os
 from datetime import datetime
 from typing import Any, Dict, Iterator, List, Tuple
 from pathlib import Path
+from io import StringIO
 from dotenv import load_dotenv
+from influxdb_client import InfluxDBClient, Point
+from influxdb_client.client.write_api import SYNCHRONOUS
 
 # Load environment variables from .env file if it exists
 # This ensures InfluxDB credentials are loaded for standalone installations
@@ -29,9 +32,6 @@ _METADATA_KEYS = {
     "message",
     "time",
 }
-from io import StringIO
-from influxdb_client import InfluxDBClient, Point
-from influxdb_client.client.write_api import SYNCHRONOUS
 
 # Keep imports light at module import time (metrics can depend on psutil).
 
@@ -52,13 +52,13 @@ class MetricsLogger:
             token = os.environ.get("INFLUXDB_TOKEN", "my-super-secret-token")
             org = os.environ.get("INFLUXDB_ORG", "my-org")
             self.bucket = os.environ.get("INFLUXDB_BUCKET", "smo-metrics")
-            
+
             print(f"Initializing InfluxDB client:")
             print(f"  URL: {url}")
             print(f"  Org: {org}")
             print(f"  Bucket: {self.bucket}")
             print(f"  Token: {'*' * max(0, len(token) - 10) + token[-10:] if len(token) > 10 else '***'}")
-            
+
             self.influx_client = InfluxDBClient(url=url, token=token, org=org)
             self.write_api = self.influx_client.write_api(write_options=SYNCHRONOUS)
             print("✓ InfluxDB client initialized successfully")
@@ -93,7 +93,7 @@ class MetricsLogger:
 
     def _snapshot_to_points(self, snapshot: Dict[str, Any]) -> List[Point]:
         points: List[Point] = []
-        
+
         # Ensure timestamp exists and is valid
         timestamp_value = snapshot.get("timestamp")
         if timestamp_value is None:
@@ -124,7 +124,7 @@ class MetricsLogger:
 
     def _iter_numeric_fields(self, payload: Any, prefix: Tuple[str, ...] = ()) -> Iterator[Tuple[str, int | float]]:
         """Yield flattened numeric fields from nested payload structures.
-        
+
         Preserves integer types for fields like 'pid' to avoid InfluxDB type conflicts.
         """
 
@@ -171,31 +171,31 @@ class MetricsLogger:
             entries = [data]
         else:
             entries = list(self.read_json_logs())
-            
+
         if not entries:
             return ""
 
         flattened_entries = []
         all_fields = set()
-        
+
         for entry in entries:
             flat = self._flatten_entry(entry)
             flattened_entries.append(flat)
             all_fields.update(flat.keys())
-            
+
         output = StringIO()
         writer = csv.DictWriter(output, fieldnames=sorted(all_fields))
         writer.writeheader()
-        
+
         for entry in flattened_entries:
             row = {field: entry.get(field, "") for field in all_fields}
             writer.writerow(row)
-            
+
         return output.getvalue()
 
     def _flatten_entry(self, entry: Dict[str, Any]) -> Dict[str, Any]:
         flat: Dict[str, Any] = {"timestamp": entry.get("timestamp", datetime.now().isoformat())}
-        
+
         for section, data in entry.items():
             if section == "timestamp":
                 continue

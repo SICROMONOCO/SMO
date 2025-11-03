@@ -242,7 +242,7 @@ class TUIDashboardApp(App):
 
 
     latest_metrics: reactive[dict] = reactive({})
-    
+
 
 
     # --- Data Loading ---
@@ -453,11 +453,11 @@ class TUIDashboardApp(App):
                         yield RadioButton("Markdown")
                     yield Input(placeholder="~/exports/metrics.json", id="export_path")
                     yield Button("Export", variant="primary", id="export_logs")
-            
+
         # Fixed bottom bar for alerts
         with Container(id="alerts-bottom-bar"):
             yield AlertsGroup(title="Alerts", id="alerts")
-        
+
         yield Footer()
 
     def on_mount(self) -> None:
@@ -465,14 +465,14 @@ class TUIDashboardApp(App):
         self.set_interval(2, self.update_metrics)
         self.load_config_to_ui()
         self.update_metrics()
-        
+
         # Mount widgets after a short delay to ensure DOM is ready
         self.set_timer(0.5, self._mount_all_widgets)
-        
+
         # Mount alerts widget in bottom bar
         self.set_timer(0.6, self._mount_alerts_widget)
-        
-    
+
+
     def _mount_alerts_widget(self) -> None:
         """Ensure alerts widget is properly set up in the bottom bar."""
         try:
@@ -482,13 +482,13 @@ class TUIDashboardApp(App):
             logger.warning("Alerts widget not found in bottom bar")
         except Exception as e:
             logger.error(f"Error checking alerts widget: {e}", exc_info=True)
-    
+
     def _mount_all_widgets(self) -> None:
         """Mount all metric groups into the live view container."""
         try:
             live_view = self.query_one("#live-view-container", ScrollableContainer)
             logger.info(f"Mounting {len(self.available_groups)} widgets into live view")
-            
+
             for group_id, info in self.available_groups.items():
                 try:
                     # Check if already mounted
@@ -502,7 +502,7 @@ class TUIDashboardApp(App):
                         logger.info(f"✓ Mounted: {group_id} ({info['name']})")
                     except Exception as e:
                         logger.error(f"Failed to mount {group_id}: {e}", exc_info=True)
-                        
+
         except NoMatches:
             logger.error("Live view container #live-view-container not found!")
         except Exception as e:
@@ -543,14 +543,14 @@ class TUIDashboardApp(App):
 
             # Expand user path (e.g., ~/logs) and resolve to absolute path
             export_path = Path(export_path_str).expanduser().resolve()
-            
+
             # Check if format is selected
             radio_set = self.query_one(RadioSet)
             pressed_button = radio_set.pressed_button
             if pressed_button is None:
                 self.notify("Please select an export format.", severity="error")
                 return
-                
+
             selected_format = pressed_button.label.plain.lower()
 
             if not self.METRICS_LOG_PATH.exists():

@@ -19,7 +19,7 @@ import time
 import math
 import enum
 import threading
-from typing import Any, Callable, Dict
+from typing import Any, Callable
 
 try:
     # when imported as package: use relative imports
@@ -55,10 +55,12 @@ _LATEST: dict[str, dict] = {}  # cache of most recent results
 _LAST_UPDATE: dict[str, float] = {}
 _LOCK = threading.RLock()
 
+
 def set_latest(name: str, data: dict):
     """Save the latest snapshot for a provider."""
     _LATEST[name] = data
     _LAST_UPDATE[name] = time.time()
+
 
 def get_latest(name: str) -> dict | None:
     """Get last known snapshot for a provider."""
@@ -69,19 +71,15 @@ def register_provider(name: str, func: callable):
     with _LOCK:
         _PROVIDERS[name] = func
 
+
 def get_provider(name: str):
     with _LOCK:
         return _PROVIDERS.get(name)
 
+
 def get_providers():
     with _LOCK:
         return list(_PROVIDERS.keys())
-
-def gather_all():
-    with _LOCK:
-        # return a shallow copy to avoid callers mutating internal state
-        combined = {k: _LATEST.get(k) for k in _PROVIDERS.keys()}
-    return combined
 
 
 def to_primitive(obj: Any, _seen: set | None = None) -> Any:
@@ -217,5 +215,3 @@ register("disk", disk_mod.get_disk_metrics)
 register("network", net_mod.get_network_metrics)
 register("process", process_mod.gather)
 
-
-    
