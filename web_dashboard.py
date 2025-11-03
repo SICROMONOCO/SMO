@@ -8,7 +8,6 @@ import os
 import yaml
 import tempfile
 from pathlib import Path
-from influxdb_client.client.influxdb_client_async import InfluxDBClientAsync
 from starlette.websockets import WebSocketDisconnect, WebSocketState
 from starlette.background import BackgroundTask
 from typing import Dict, Any
@@ -1042,7 +1041,7 @@ html = r"""
                         <div style="font-size: 2em; margin-bottom: 10px;">⚠️</div>
                         <div style="font-weight: bold; margin-bottom: 10px;">${message}</div>
                         <div style="color: #888; font-size: 0.9em;">
-                            Check that InfluxDB is running and the agent is collecting metrics.<br>
+                            Check that the agent is running and collecting metrics.<br>
                             See browser console for details.
                         </div>
                     </div>
@@ -1064,17 +1063,18 @@ html = r"""
                 try {
                     const data = JSON.parse(event.data);
 
+                    // Handle info messages (e.g., waiting for data)
+                    if (data.info) {
+                        console.log('Info:', data.info);
+                        // Don't mark as error, just wait
+                        return;
+                    }
+
                     if (data.error) {
                         console.error('Error from server:', data.error);
                         showConnectionError(data.error);
                         if (data.suggestion) {
                             console.error('Suggestion:', data.suggestion);
-                        }
-                        if (data.url) {
-                            console.error('InfluxDB URL:', data.url);
-                        }
-                        if (data.bucket) {
-                            console.error('Bucket:', data.bucket);
                         }
                         return;
                     }
@@ -1306,92 +1306,101 @@ def _logs_to_markdown(logs: list) -> str:
 
     return '\n'.join(lines)
 
-def _unflatten_fields(flat_dict):
-    """Convert flat field names back to nested structure.
-
-    Example: {'average_cpu_percent_value': 45.2} -> {'average': {'cpu_percent': {'value': 45.2}}}
-    """
-    result = {}
-    for key, value in flat_dict.items():
-        parts = key.split('_')
-        current = result
-
-        # Navigate/create nested structure
-        for i, part in enumerate(parts[:-1]):
-            if part not in current:
-                current[part] = {}
-            current = current[part]
-
-        # Set the final value
-        current[parts[-1]] = {'value': value}
-
-    return result
-
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
+    """WebSocket endpoint that streams metrics from the JSON log file.
+    
+    This implementation reads directly from the metrics log file (like the TUI does)
+    instead of requiring InfluxDB, making it work in standalone mode without database setup.
+    """
     await websocket.accept()
 
-    url = os.environ.get("INFLUXDB_URL", "http://smo-db:8086")
-    token = os.environ.get("INFLUXDB_TOKEN", "my-super-secret-token")
-    org = os.environ.get("INFLUXDB_ORG", "my-org")
-    bucket = os.environ.get("INFLUXDB_BUCKET", "smo-metrics")
-
-    # Log connection attempt for debugging
-    print(f"WebSocket connecting to InfluxDB at {url}")
-    print(f"  Organization: {org}")
-    print(f"  Bucket: {bucket}")
-    print(f"  Token: {'*' * max(0, len(token) - 10) + token[-10:] if len(token) > 10 else '***'}")
+    print(f"WebSocket client connected - streaming from {METRICS_LOG_PATH}")
 
     try:
-        async with InfluxDBClientAsync(url=url, token=token, org=org) as client:
-            query_api = client.query_api()
+        while True:
+            try:
+                # Read the last line from the metrics log file (most recent snapshot)
+                if not METRICS_LOG_PATH.exists():
+                    await websocket.send_text(json.dumps({
+                        "error": "Metrics log file not found",
+                        "suggestion": "Make sure the agent is running and collecting metrics"
+                    }))
+                    await asyncio.sleep(2)
+                    continue
 
-            while True:
+                # Read the most recent metrics snapshot from the log file
+                # Use a more efficient approach to read the last line
+                last_line = None
                 try:
-                    query = f'from(bucket: "{bucket}") |> range(start: -1m) |> last()'
-                    tables = await query_api.query(query)
+                    with open(METRICS_LOG_PATH, "rb") as f:
+                        # Seek to end of file
+                        f.seek(0, 2)
+                        file_size = f.tell()
+                        
+                        # If file is empty, nothing to read
+                        if file_size == 0:
+                            await asyncio.sleep(1)
+                            continue
+                        
+                        # Read backwards to find the last complete line
+                        # Start from a reasonable position (last 8KB should be enough)
+                        chunk_size = min(8192, file_size)
+                        f.seek(max(0, file_size - chunk_size))
+                        
+                        # Read the chunk and split into lines
+                        chunk = f.read().decode('utf-8', errors='ignore')
+                        lines = chunk.strip().split('\n')
+                        
+                        # Get the last non-empty line
+                        for line in reversed(lines):
+                            if line.strip():
+                                last_line = line
+                                break
+                except IOError as e:
+                    print(f"Error reading metrics file: {e}")
+                    await asyncio.sleep(1)
+                    continue
 
-                    results = {}
-                    for table in tables:
-                        for record in table.records:
-                            measurement = record.get_measurement()
-                            field = record.get_field()
-                            value = record.get_value()
-                            if measurement not in results:
-                                results[measurement] = {}
-                            results[measurement][field] = value
-
-                    # Unflatten each measurement's fields back to nested structure
-                    unflattened_results = {}
-                    for measurement, flat_fields in results.items():
-                        unflattened_results[measurement] = _unflatten_fields(flat_fields)
-
-                    await websocket.send_text(json.dumps(unflattened_results, indent=2))
-                except WebSocketDisconnect:
-                    print("WebSocket client disconnected")
-                    break
-                except Exception as e:
-                    error_msg = str(e)
-                    print(f"Error querying InfluxDB: {error_msg}")
-                    if websocket.client_state == WebSocketState.CONNECTED:
+                if last_line:
+                    try:
+                        metrics_data = json.loads(last_line)
+                        # Send the complete metrics snapshot to the client
+                        await websocket.send_text(json.dumps(metrics_data, indent=2))
+                    except json.JSONDecodeError as e:
+                        print(f"Error parsing metrics JSON: {e}")
                         await websocket.send_text(json.dumps({
-                            "error": f"InfluxDB query error: {error_msg}",
-                            "url": url,
-                            "bucket": bucket
+                            "error": "Error parsing metrics data"
                         }))
-                    else:
-                        break
+                else:
+                    # No data yet, send a waiting message
+                    await websocket.send_text(json.dumps({
+                        "info": "Waiting for metrics data...",
+                        "suggestion": "The agent is starting up or no metrics have been collected yet"
+                    }))
 
-                await asyncio.sleep(1)
+            except WebSocketDisconnect:
+                print("WebSocket client disconnected")
+                break
+            except Exception as e:
+                error_msg = str(e)
+                print(f"Error streaming metrics: {error_msg}")
+                if websocket.client_state == WebSocketState.CONNECTED:
+                    await websocket.send_text(json.dumps({
+                        "error": f"Error streaming metrics: {error_msg}"
+                    }))
+                else:
+                    break
+
+            # Wait before reading the next snapshot (1 second refresh rate)
+            await asyncio.sleep(1)
     except Exception as e:
         error_msg = str(e)
-        print(f"Failed to connect to InfluxDB: {error_msg}")
+        print(f"WebSocket error: {error_msg}")
         try:
             if websocket.client_state == WebSocketState.CONNECTED:
                 await websocket.send_text(json.dumps({
-                    "error": f"Failed to connect to InfluxDB at {url}: {error_msg}",
-                    "url": url,
-                    "suggestion": "Check that InfluxDB is running and credentials are correct"
+                    "error": f"WebSocket error: {error_msg}"
                 }))
         except:
             pass

@@ -47,6 +47,21 @@ class MetricsLogger:
         self._init_influxdb()
 
     def _init_influxdb(self):
+        """Initialize InfluxDB client if available, otherwise disable it gracefully.
+        
+        This makes InfluxDB optional - the logger will work with just file-based logging
+        if InfluxDB is not available or configured.
+        """
+        # Check if InfluxDB should be disabled (accepts: true/1 or false/0)
+        influx_enabled_str = os.environ.get("INFLUXDB_ENABLED", "true").lower()
+        influx_enabled = influx_enabled_str in ("true", "1")
+        
+        if not influx_enabled:
+            print("ℹ️  InfluxDB is disabled via INFLUXDB_ENABLED environment variable")
+            print("  Metrics will be logged to file only")
+            self.influx_client = None
+            return
+
         try:
             url = os.environ.get("INFLUXDB_URL", "http://smo-db:8086")
             token = os.environ.get("INFLUXDB_TOKEN", "my-super-secret-token")
@@ -63,8 +78,9 @@ class MetricsLogger:
             self.write_api = self.influx_client.write_api(write_options=SYNCHRONOUS)
             print("✓ InfluxDB client initialized successfully")
         except Exception as e:
-            print(f"❌ Failed to initialize InfluxDB client: {e}")
-            print("  Metrics will be logged to file only (not to InfluxDB)")
+            print(f"⚠️  Failed to initialize InfluxDB client: {e}")
+            print("  Metrics will be logged to file only (InfluxDB disabled)")
+            print("  This is normal for standalone installations without InfluxDB")
             self.influx_client = None
 
     def log(self, snapshot: Dict[str, Any]) -> None:
@@ -82,14 +98,19 @@ class MetricsLogger:
         except Exception:
             pass
 
-        # Write to InfluxDB
+        # Write to InfluxDB (optional - only if client is initialized)
         if self.influx_client:
             try:
                 points = self._snapshot_to_points(snapshot)
                 if points:
                     self.write_api.write(bucket=self.bucket, record=points)
             except Exception as e:
-                print(f"Failed to write to InfluxDB: {e}")
+                # InfluxDB write failed - this is non-fatal since file logging still works
+                # Only log on first failure to avoid spam
+                if not hasattr(self, '_influx_error_logged'):
+                    print(f"⚠️  InfluxDB write failed (will not be logged again): {e}")
+                    print("  File-based logging is still working normally")
+                    self._influx_error_logged = True
 
     def _snapshot_to_points(self, snapshot: Dict[str, Any]) -> List[Point]:
         points: List[Point] = []
