@@ -8,6 +8,14 @@ import json
 import os
 from datetime import datetime
 from typing import Any, Dict, Iterator, List, Tuple
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Load environment variables from .env file if it exists
+# This ensures InfluxDB credentials are loaded for standalone installations
+env_path = Path(__file__).resolve().parent / ".env"
+if env_path.exists():
+    load_dotenv(env_path)
 
 _METADATA_KEYS = {
     "unit",
@@ -44,10 +52,19 @@ class MetricsLogger:
             token = os.environ.get("INFLUXDB_TOKEN", "my-super-secret-token")
             org = os.environ.get("INFLUXDB_ORG", "my-org")
             self.bucket = os.environ.get("INFLUXDB_BUCKET", "smo-metrics")
+            
+            print(f"Initializing InfluxDB client:")
+            print(f"  URL: {url}")
+            print(f"  Org: {org}")
+            print(f"  Bucket: {self.bucket}")
+            print(f"  Token: {'*' * 10 + token[-10:] if len(token) > 10 else '***'}")
+            
             self.influx_client = InfluxDBClient(url=url, token=token, org=org)
             self.write_api = self.influx_client.write_api(write_options=SYNCHRONOUS)
+            print("✓ InfluxDB client initialized successfully")
         except Exception as e:
-            print(f"Failed to initialize InfluxDB client: {e}")
+            print(f"❌ Failed to initialize InfluxDB client: {e}")
+            print("  Metrics will be logged to file only (not to InfluxDB)")
             self.influx_client = None
 
     def log(self, snapshot: Dict[str, Any]) -> None:

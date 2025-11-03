@@ -14,6 +14,7 @@ from starlette.background import BackgroundTask
 from typing import Dict, Any
 import csv
 from io import StringIO
+from dotenv import load_dotenv
 
 app = FastAPI()
 
@@ -21,6 +22,12 @@ app = FastAPI()
 PROJECT_ROOT = Path(__file__).resolve().parent
 CONFIG_PATH = PROJECT_ROOT / "config" / "config.yaml"
 METRICS_LOG_PATH = PROJECT_ROOT / "logs" / "smo_metrics.jsonl"
+
+# Load environment variables from .env file
+# This is important for standalone installations where .env contains InfluxDB credentials
+env_path = PROJECT_ROOT / ".env"
+if env_path.exists():
+    load_dotenv(env_path)
 
 # Pydantic models
 class ConfigUpdate(BaseModel):
@@ -1274,36 +1281,62 @@ async def websocket_endpoint(websocket: WebSocket):
     org = os.environ.get("INFLUXDB_ORG", "my-org")
     bucket = os.environ.get("INFLUXDB_BUCKET", "smo-metrics")
 
-    async with InfluxDBClientAsync(url=url, token=token, org=org) as client:
-        query_api = client.query_api()
+    # Log connection attempt for debugging
+    print(f"WebSocket connecting to InfluxDB at {url}")
+    print(f"  Organization: {org}")
+    print(f"  Bucket: {bucket}")
+    print(f"  Token: {'*' * 10 + token[-10:] if len(token) > 10 else '***'}")
 
-        while True:
-            try:
-                query = f'from(bucket: "{bucket}") |> range(start: -1m) |> last()'
-                tables = await query_api.query(query)
+    try:
+        async with InfluxDBClientAsync(url=url, token=token, org=org) as client:
+            query_api = client.query_api()
 
-                results = {}
-                for table in tables:
-                    for record in table.records:
-                        measurement = record.get_measurement()
-                        field = record.get_field()
-                        value = record.get_value()
-                        if measurement not in results:
-                            results[measurement] = {}
-                        results[measurement][field] = value
+            while True:
+                try:
+                    query = f'from(bucket: "{bucket}") |> range(start: -1m) |> last()'
+                    tables = await query_api.query(query)
 
-                # Unflatten each measurement's fields back to nested structure
-                unflattened_results = {}
-                for measurement, flat_fields in results.items():
-                    unflattened_results[measurement] = _unflatten_fields(flat_fields)
+                    results = {}
+                    for table in tables:
+                        for record in table.records:
+                            measurement = record.get_measurement()
+                            field = record.get_field()
+                            value = record.get_value()
+                            if measurement not in results:
+                                results[measurement] = {}
+                            results[measurement][field] = value
 
-                await websocket.send_text(json.dumps(unflattened_results, indent=2))
-            except WebSocketDisconnect:
-                break
-            except Exception as e:
-                if websocket.client_state == WebSocketState.CONNECTED:
-                    await websocket.send_text(json.dumps({"error": str(e)}))
-                else:
+                    # Unflatten each measurement's fields back to nested structure
+                    unflattened_results = {}
+                    for measurement, flat_fields in results.items():
+                        unflattened_results[measurement] = _unflatten_fields(flat_fields)
+
+                    await websocket.send_text(json.dumps(unflattened_results, indent=2))
+                except WebSocketDisconnect:
+                    print("WebSocket client disconnected")
                     break
+                except Exception as e:
+                    error_msg = str(e)
+                    print(f"Error querying InfluxDB: {error_msg}")
+                    if websocket.client_state == WebSocketState.CONNECTED:
+                        await websocket.send_text(json.dumps({
+                            "error": f"InfluxDB query error: {error_msg}",
+                            "url": url,
+                            "bucket": bucket
+                        }))
+                    else:
+                        break
 
-            await asyncio.sleep(1)
+                await asyncio.sleep(1)
+    except Exception as e:
+        error_msg = str(e)
+        print(f"Failed to connect to InfluxDB: {error_msg}")
+        try:
+            if websocket.client_state == WebSocketState.CONNECTED:
+                await websocket.send_text(json.dumps({
+                    "error": f"Failed to connect to InfluxDB at {url}: {error_msg}",
+                    "url": url,
+                    "suggestion": "Check that InfluxDB is running and credentials are correct"
+                }))
+        except:
+            pass
