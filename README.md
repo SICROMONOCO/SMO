@@ -51,10 +51,11 @@ See [CONTAINERIZATION.md](CONTAINERIZATION.md) for detailed containerization doc
 - 📊 **Real-time Metrics**: CPU, Memory, Disk, Network, and Process monitoring
 - 🖥️ **Interactive TUI**: Terminal-based dashboard with live updates
 - 🌐 **Web Dashboard**: Browser-based interface with visual charts and graphs
-- 💾 **InfluxDB Integration**: Time-series data storage and retrieval
+- 💾 **InfluxDB Integration** (Optional): Time-series data storage for historical analysis
 - 🔔 **Alerting System**: Configurable thresholds and notifications
 - 🐋 **Containerized**: Easy deployment with Docker Compose
 - 🖧 **Host Monitoring**: Support for monitoring actual host machine metrics
+- 📁 **File-Based Logging**: Works without database setup (InfluxDB optional)
 
 ## Prerequisites
 
@@ -81,8 +82,10 @@ The application is orchestrated using Docker Compose. The following services are
 | `smo-agent`  | The main monitoring agent that collects system metrics. |
 | `smo-web`    | A FastAPI web dashboard with WebSockets for real-time metrics. |
 | `smo-tui`    | A Textual-based TUI for interactive monitoring.       |
-| `smo-db`     | An InfluxDB instance for storing metrics data.        |
+| `smo-db`     | An InfluxDB instance for storing metrics data (optional). |
 | `smo-remote` | A minimal SSH server for testing remote monitoring.   |
+
+**Note:** Both the web dashboard and TUI read metrics directly from log files, so InfluxDB is optional. The web dashboard and TUI will work even if InfluxDB is not running or configured.
 
 ### Prerequisites
 
