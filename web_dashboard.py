@@ -1330,12 +1330,33 @@ async def websocket_endpoint(websocket: WebSocket):
                     continue
 
                 # Read the most recent metrics snapshot from the log file
+                # Use a more efficient approach to read the last line
                 last_line = None
                 try:
-                    with open(METRICS_LOG_PATH, "r", encoding="utf-8") as f:
-                        for line in f:
+                    with open(METRICS_LOG_PATH, "rb") as f:
+                        # Seek to end of file
+                        f.seek(0, 2)
+                        file_size = f.tell()
+                        
+                        # If file is empty, nothing to read
+                        if file_size == 0:
+                            await asyncio.sleep(1)
+                            continue
+                        
+                        # Read backwards to find the last complete line
+                        # Start from a reasonable position (last 8KB should be enough)
+                        chunk_size = min(8192, file_size)
+                        f.seek(max(0, file_size - chunk_size))
+                        
+                        # Read the chunk and split into lines
+                        chunk = f.read().decode('utf-8', errors='ignore')
+                        lines = chunk.strip().split('\n')
+                        
+                        # Get the last non-empty line
+                        for line in reversed(lines):
                             if line.strip():
                                 last_line = line
+                                break
                 except IOError as e:
                     print(f"Error reading metrics file: {e}")
                     await asyncio.sleep(1)
@@ -1344,8 +1365,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 if last_line:
                     try:
                         metrics_data = json.loads(last_line)
-                        # Remove timestamp from the data sent to client (not needed for display)
-                        # but keep it available if needed
+                        # Send the complete metrics snapshot to the client
                         await websocket.send_text(json.dumps(metrics_data, indent=2))
                     except json.JSONDecodeError as e:
                         print(f"Error parsing metrics JSON: {e}")

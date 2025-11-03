@@ -52,8 +52,9 @@ class MetricsLogger:
         This makes InfluxDB optional - the logger will work with just file-based logging
         if InfluxDB is not available or configured.
         """
-        # Check if InfluxDB should be disabled
-        influx_enabled = os.environ.get("INFLUXDB_ENABLED", "true").lower() in ("true", "1", "yes")
+        # Check if InfluxDB should be disabled (accepts: true/1 or false/0)
+        influx_enabled_str = os.environ.get("INFLUXDB_ENABLED", "true").lower()
+        influx_enabled = influx_enabled_str in ("true", "1")
         
         if not influx_enabled:
             print("ℹ️  InfluxDB is disabled via INFLUXDB_ENABLED environment variable")
