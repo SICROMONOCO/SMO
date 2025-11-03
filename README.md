@@ -19,12 +19,16 @@ See [CONTAINERIZATION.md](CONTAINERIZATION.md) for details.
 
 ### 2. Standalone Installation (Direct host installation)
 
-Install SMO and InfluxDB directly on your Linux system without Docker.
+Install SMO directly on your Linux system without Docker. InfluxDB is optional.
 
 **Quick Start:**
 ```bash
 sudo ./setup-standalone.sh
 ```
+
+During installation, you'll be asked if you want to install InfluxDB:
+- Choose **Yes** for full installation with historical metrics storage
+- Choose **No** for minimal installation with file-based logging only
 
 See [docs/STANDALONE_INSTALLATION.md](docs/STANDALONE_INSTALLATION.md) for details.
 
