@@ -57,7 +57,7 @@ class MetricsLogger:
             print(f"  URL: {url}")
             print(f"  Org: {org}")
             print(f"  Bucket: {self.bucket}")
-            print(f"  Token: {'*' * 10 + token[-10:] if len(token) > 10 else '***'}")
+            print(f"  Token: {'*' * max(0, len(token) - 10) + token[-10:] if len(token) > 10 else '***'}")
             
             self.influx_client = InfluxDBClient(url=url, token=token, org=org)
             self.write_api = self.influx_client.write_api(write_options=SYNCHRONOUS)

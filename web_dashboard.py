@@ -1031,6 +1031,7 @@ html = """
             
             // WebSocket configuration
             const RECONNECT_DELAY_MS = 5000;
+            const NO_DATA_TIMEOUT_MS = 10000;  // Show error if no data received after 10 seconds
             let reconnectAttempts = 0;
             let dataReceived = false;
             
@@ -1116,13 +1117,13 @@ html = """
                 }, RECONNECT_DELAY_MS);
             };
             
-            // Timeout to check if we've received any data after 10 seconds
+            // Timeout to check if we've received any data
             setTimeout(() => {
                 if (!dataReceived) {
-                    console.warn('No metrics data received after 10 seconds');
+                    console.warn(`No metrics data received after ${NO_DATA_TIMEOUT_MS / 1000} seconds`);
                     showConnectionError('No metrics data available');
                 }
-            }, 10000);
+            }, NO_DATA_TIMEOUT_MS);
         </script>
     </body>
 </html>
@@ -1339,7 +1340,7 @@ async def websocket_endpoint(websocket: WebSocket):
     print(f"WebSocket connecting to InfluxDB at {url}")
     print(f"  Organization: {org}")
     print(f"  Bucket: {bucket}")
-    print(f"  Token: {'*' * 10 + token[-10:] if len(token) > 10 else '***'}")
+    print(f"  Token: {'*' * max(0, len(token) - 10) + token[-10:] if len(token) > 10 else '***'}")
 
     try:
         async with InfluxDBClientAsync(url=url, token=token, org=org) as client:

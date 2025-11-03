@@ -273,9 +273,22 @@ done
 
 # Check if InfluxDB is already initialized
 echo "Checking InfluxDB initialization status..."
-ONBOARDING_STATUS=$(curl -s http://localhost:8086/api/v2/setup | grep -o '"allowed":[^,}]*')
+# Try to get the setup status from the API
+# Response format: {"allowed":true/false,...}
+SETUP_RESPONSE=$(curl -s http://localhost:8086/api/v2/setup)
 
-if echo "$ONBOARDING_STATUS" | grep -q "false"; then
+# Check if we got a valid response
+if [ -z "$SETUP_RESPONSE" ]; then
+    echo "⚠️  Could not check InfluxDB status"
+    echo "Attempting initialization anyway..."
+    ONBOARDING_ALLOWED="true"
+elif echo "$SETUP_RESPONSE" | grep -q '"allowed"[[:space:]]*:[[:space:]]*false'; then
+    ONBOARDING_ALLOWED="false"
+else
+    ONBOARDING_ALLOWED="true"
+fi
+
+if [ "$ONBOARDING_ALLOWED" = "false" ]; then
     echo "⚠️  InfluxDB is already initialized"
     echo ""
     echo "If you need to reinitialize InfluxDB with new credentials:"
