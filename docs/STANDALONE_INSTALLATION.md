@@ -51,13 +51,21 @@ sudo ./setup-standalone.sh
 ```
 
 The script will:
-1. Detect your Linux distribution
-2. Install Python dependencies
-3. Install and configure InfluxDB
-4. Set up SMO in `/opt/smo`
-5. Create systemd services
-6. Start all services automatically
-7. Configure firewall rules (if applicable)
+1. Ask if you want to install InfluxDB (optional)
+2. Detect your Linux distribution
+3. Install Python dependencies
+4. Install and configure InfluxDB (if selected)
+5. Set up SMO in `/opt/smo`
+6. Create systemd services
+7. Start all services automatically
+8. Configure firewall rules (if applicable)
+
+**During installation**, you will be prompted:
+```
+Install InfluxDB? [Y/n]:
+```
+- Press `Y` or `Enter` for full installation with InfluxDB (recommended for historical metrics)
+- Press `n` for minimal installation without InfluxDB (simpler, file-based logging only)
 
 ### 3. Access SMO
 
@@ -72,9 +80,20 @@ For remote access, use your server's IP address:
 
 ## Running Without InfluxDB
 
-If you want to run SMO without InfluxDB (simpler setup, no database configuration needed):
+SMO can run without InfluxDB for a simpler setup. There are now three ways to do this:
 
-### Option 1: Disable InfluxDB in existing installation
+### Option 1: Choose minimal installation during setup (Recommended)
+
+When running the installation script, simply choose `n` when prompted:
+
+```bash
+sudo ./setup-standalone.sh
+# When prompted "Install InfluxDB? [Y/n]:" press 'n'
+```
+
+This will install SMO without InfluxDB from the start.
+
+### Option 2: Disable InfluxDB in existing installation
 
 ```bash
 # Stop InfluxDB service
@@ -88,7 +107,7 @@ echo "INFLUXDB_ENABLED=false" | sudo tee -a /opt/smo/.env
 sudo systemctl restart smo-agent smo-web
 ```
 
-### Option 2: Manual installation without InfluxDB
+### Option 3: Manual installation without InfluxDB
 
 ```bash
 # Install SMO manually without running setup-standalone.sh
@@ -400,17 +419,69 @@ The uninstall script will:
 
 ## Troubleshooting
 
+### InfluxDB fails to start or install
+
+**Symptoms:**
+- Installation script times out waiting for InfluxDB
+- InfluxDB service fails to start
+- Port 8086 errors
+
+**Quick Solution: Use minimal installation without InfluxDB**
+
+If you're having persistent InfluxDB issues, the easiest solution is to skip it entirely:
+
+```bash
+# If you're in the middle of installation, press Ctrl+C and run:
+sudo ./setup-standalone.sh
+# When prompted "Install InfluxDB? [Y/n]:" press 'n'
+```
+
+The web dashboard and TUI work perfectly without InfluxDB using file-based logging.
+
+**Alternative: Troubleshoot InfluxDB startup issues**
+
+If you want to keep trying to use InfluxDB:
+
+1. **Check if port 8086 is already in use:**
+   ```bash
+   sudo netstat -tlnp | grep 8086
+   # or
+   sudo ss -tlnp | grep 8086
+   ```
+   If something else is using port 8086, stop it or change InfluxDB's port.
+
+2. **Check InfluxDB service status:**
+   ```bash
+   sudo systemctl status influxdb
+   sudo journalctl -u influxdb -n 50
+   ```
+
+3. **Check permissions on data directory:**
+   ```bash
+   ls -ld /var/lib/smo/influxdb
+   # Should be owned by influxdb user or the installation user
+   sudo chown -R influxdb:influxdb /var/lib/smo/influxdb
+   ```
+
+4. **Try starting InfluxDB manually:**
+   ```bash
+   sudo systemctl start influxdb
+   # Wait a few seconds
+   curl http://localhost:8086/health
+   # Should return {"name":"influxdb",...}
+   ```
+
 ### Services fail to start
 
 **Check logs:**
 ```bash
 sudo journalctl -u smo-agent -n 50
 sudo journalctl -u smo-web -n 50
-sudo journalctl -u influxdb -n 50
+sudo journalctl -u influxdb -n 50  # if InfluxDB is installed
 ```
 
 **Common issues:**
-- InfluxDB not running: `sudo systemctl start influxdb`
+- InfluxDB not running (if enabled): `sudo systemctl start influxdb`
 - Port already in use: Check with `sudo netstat -tlnp | grep -E '5000|8086'`
 - Permission issues: Check file ownership in `/opt/smo`
 
@@ -430,7 +501,16 @@ If InfluxDB was previously initialized, you need to use the old credentials. Che
 influx auth list
 ```
 
-**Option 2: Completely reinitialize**
+**Option 2: Switch to minimal installation (no InfluxDB)**
+The simplest solution is to disable InfluxDB and use file-based logging:
+```bash
+sudo systemctl stop influxdb
+sudo systemctl disable influxdb
+echo "INFLUXDB_ENABLED=false" | sudo tee -a /opt/smo/.env
+sudo systemctl restart smo-agent smo-web
+```
+
+**Option 3: Completely reinitialize InfluxDB**
 ```bash
 # Stop all services
 sudo systemctl stop smo-agent smo-web influxdb
