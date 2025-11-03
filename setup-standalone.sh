@@ -257,9 +257,11 @@ systemctl enable influxdb --now 2>/dev/null || systemctl start influxdb
 
 # Wait for InfluxDB to be ready
 echo "Waiting for InfluxDB to be ready..."
+INFLUX_READY=0
 for i in {1..30}; do
     if curl -s http://localhost:8086/health > /dev/null 2>&1; then
         echo "✓ InfluxDB is ready"
+        INFLUX_READY=1
         break
     fi
     if [ $i -eq 30 ]; then
@@ -269,16 +271,72 @@ for i in {1..30}; do
     sleep 1
 done
 
-# Initialize InfluxDB
-echo "Initializing InfluxDB..."
-influx setup \
-    --username admin \
-    --password "$INFLUX_PASSWORD" \
-    --org smo-org \
-    --bucket smo-metrics \
-    --token "$INFLUX_TOKEN" \
-    --force \
-    2>/dev/null || echo "InfluxDB already initialized"
+# Check if InfluxDB is already initialized
+echo "Checking InfluxDB initialization status..."
+# Try to get the setup status from the API
+# Response format: {"allowed":true/false,...}
+SETUP_RESPONSE=$(curl -s http://localhost:8086/api/v2/setup)
+
+# Check if we got a valid response
+if [ -z "$SETUP_RESPONSE" ]; then
+    echo "⚠️  Could not check InfluxDB status"
+    echo "Attempting initialization anyway..."
+    ONBOARDING_ALLOWED="true"
+elif echo "$SETUP_RESPONSE" | grep -q '"allowed"[[:space:]]*:[[:space:]]*false'; then
+    ONBOARDING_ALLOWED="false"
+else
+    ONBOARDING_ALLOWED="true"
+fi
+
+if [ "$ONBOARDING_ALLOWED" = "false" ]; then
+    echo "⚠️  InfluxDB is already initialized"
+    echo ""
+    echo "If you need to reinitialize InfluxDB with new credentials:"
+    echo "  1. Stop InfluxDB: sudo systemctl stop influxdb"
+    echo "  2. Remove data: sudo rm -rf $DATA_DIR/influxdb/*"
+    echo "  3. Restart setup: sudo ./setup-standalone.sh"
+    echo ""
+    echo "Continuing with existing InfluxDB setup..."
+    echo "Make sure to use the existing credentials in $INSTALL_DIR/.env"
+else
+    # Initialize InfluxDB
+    echo "Initializing InfluxDB with new credentials..."
+    
+    # Run influx setup and capture output
+    SETUP_OUTPUT=$(influx setup \
+        --username admin \
+        --password "$INFLUX_PASSWORD" \
+        --org smo-org \
+        --bucket smo-metrics \
+        --token "$INFLUX_TOKEN" \
+        --force \
+        2>&1)
+    
+    SETUP_EXIT_CODE=$?
+    
+    if [ $SETUP_EXIT_CODE -eq 0 ]; then
+        echo "✓ InfluxDB initialized successfully"
+    else
+        echo "⚠️  InfluxDB setup command had issues:"
+        echo "$SETUP_OUTPUT"
+        echo ""
+        echo "Verifying InfluxDB configuration..."
+        
+        # Verify that we can authenticate with the token
+        AUTH_CHECK=$(curl -s -w "%{http_code}" -o /dev/null \
+            -H "Authorization: Token $INFLUX_TOKEN" \
+            http://localhost:8086/api/v2/buckets)
+        
+        if [ "$AUTH_CHECK" = "200" ]; then
+            echo "✓ InfluxDB is accessible with provided credentials"
+        else
+            echo "❌ Cannot authenticate with InfluxDB. HTTP status: $AUTH_CHECK"
+            echo "Please check the credentials and try again"
+            echo "You may need to manually initialize InfluxDB"
+            exit 1
+        fi
+    fi
+fi
 
 echo "✓ InfluxDB configured and running"
 echo ""

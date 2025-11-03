@@ -336,6 +336,53 @@ sudo journalctl -u influxdb -n 50
 - Port already in use: Check with `sudo netstat -tlnp | grep -E '5000|8086'`
 - Permission issues: Check file ownership in `/opt/smo`
 
+### InfluxDB credentials not working
+
+If the credentials generated during installation don't work:
+
+**Check if InfluxDB was already initialized:**
+```bash
+curl http://localhost:8086/api/v2/setup
+# If "allowed": false, InfluxDB is already set up
+```
+
+**Option 1: Use existing credentials**
+If InfluxDB was previously initialized, you need to use the old credentials. Check `/opt/smo/.env` for stored credentials or retrieve them:
+```bash
+influx auth list
+```
+
+**Option 2: Completely reinitialize**
+```bash
+# Stop all services
+sudo systemctl stop smo-agent smo-web influxdb
+
+# Back up existing data (optional)
+sudo cp -r /var/lib/smo/influxdb /var/lib/smo/influxdb.backup
+
+# Remove InfluxDB data
+sudo rm -rf /var/lib/smo/influxdb/*
+
+# Restart InfluxDB
+sudo systemctl start influxdb
+
+# Wait for InfluxDB to be ready
+sleep 5
+
+# Re-run setup with your credentials from /opt/smo/.env
+source /opt/smo/.env
+influx setup \
+  --username admin \
+  --password "$INFLUXDB_ADMIN_PASSWORD" \
+  --org smo-org \
+  --bucket smo-metrics \
+  --token "$INFLUXDB_TOKEN" \
+  --force
+
+# Restart SMO services
+sudo systemctl start smo-agent smo-web
+```
+
 ### Cannot connect to InfluxDB
 
 **Verify InfluxDB is running:**
@@ -349,28 +396,72 @@ curl http://localhost:8086/health
 influx auth list
 ```
 
-**Re-initialize if needed:**
+**Test authentication with token:**
 ```bash
-influx setup \
-  --username admin \
-  --password YOUR_PASSWORD \
-  --org smo-org \
-  --bucket smo-metrics \
-  --token YOUR_TOKEN \
-  --force
+source /opt/smo/.env
+curl -H "Authorization: Token $INFLUXDB_TOKEN" \
+  http://localhost:8086/api/v2/buckets
+# Should return HTTP 200 and list of buckets
 ```
 
-### Web dashboard shows "No data"
+### Web dashboard shows "No data" or spinning animation
 
-**Check agent is running and collecting metrics:**
+This usually means the web dashboard cannot connect to InfluxDB or there's no data yet.
+
+**Step 1: Check environment variables are loaded**
+```bash
+# View web dashboard logs
+sudo journalctl -u smo-web -f
+
+# You should see lines like:
+# "Initializing InfluxDB client:"
+# "URL: http://localhost:8086"
+# "✓ InfluxDB client initialized successfully"
+```
+
+**Step 2: Check agent is running and collecting metrics:**
 ```bash
 sudo systemctl status smo-agent
 sudo journalctl -u smo-agent -f
+
+# You should see:
+# "✓ InfluxDB client initialized successfully"
+# Regular metric collection messages
 ```
 
-**Verify data in InfluxDB:**
+**Step 3: Verify data in InfluxDB:**
 ```bash
-influx query 'from(bucket:"smo-metrics") |> range(start:-1h) |> limit(n:10)'
+source /opt/smo/.env
+influx query "from(bucket:\"smo-metrics\") |> range(start:-1h) |> limit(n:10)"
+
+# Should show recent metrics
+```
+
+**Step 4: Check web dashboard can query InfluxDB:**
+```bash
+# Check browser console (F12) for JavaScript errors
+# Common errors:
+# - "Failed to connect to InfluxDB" - Check credentials in /opt/smo/.env
+# - "No metrics data available" - Agent isn't writing data
+# - WebSocket errors - Firewall or proxy issues
+```
+
+**Step 5: Verify credentials match across services:**
+```bash
+# All three should use the same token
+sudo grep INFLUXDB_TOKEN /opt/smo/.env
+# Check what the agent sees:
+sudo journalctl -u smo-agent | grep "Token:"
+# Check what the web dashboard sees:
+sudo journalctl -u smo-web | grep "Token:"
+```
+
+**Step 6: Restart services if needed:**
+```bash
+sudo systemctl restart influxdb
+sleep 5
+sudo systemctl restart smo-agent smo-web
+# Wait 30 seconds and refresh browser
 ```
 
 ### High memory/CPU usage
