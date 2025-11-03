@@ -19,7 +19,8 @@ echo "  2. Minimal Installation (without InfluxDB) - Simpler, file-based logging
 echo ""
 read -p "Install InfluxDB? [Y/n]: " install_influx
 install_influx=${install_influx:-y}
-if [ "$install_influx" = "n" ] || [ "$install_influx" = "N" ]; then
+install_influx=$(echo "$install_influx" | tr '[:upper:]' '[:lower:]')
+if [ "$install_influx" = "n" ]; then
     SKIP_INFLUXDB=true
     echo "ℹ️  Skipping InfluxDB installation"
 else
@@ -300,10 +301,19 @@ EOF
 
     # Start InfluxDB
     echo "Starting InfluxDB service..."
-    systemctl enable influxdb --now 2>/dev/null || systemctl start influxdb 2>/dev/null || {
-        echo "⚠️  Warning: Could not start InfluxDB via systemctl"
-        echo "   You may need to start it manually"
-    }
+    if systemctl enable influxdb 2>/dev/null; then
+        echo "✓ InfluxDB service enabled"
+    else
+        echo "⚠️  Warning: Could not enable InfluxDB service"
+    fi
+    
+    if systemctl start influxdb 2>/dev/null; then
+        echo "✓ InfluxDB service started"
+    else
+        echo "⚠️  Warning: Could not start InfluxDB service"
+        echo "   This may be normal if InfluxDB is already running"
+        echo "   Check status: systemctl status influxdb"
+    fi
 
     # Wait for InfluxDB to be ready
     echo "Waiting for InfluxDB to be ready..."
@@ -320,10 +330,14 @@ EOF
             echo "   Common issues:"
             echo "   - Port 8086 already in use: sudo netstat -tlnp | grep 8086"
             echo "   - Permission issues: check ownership of $DATA_DIR/influxdb"
+            echo "   - Service not installed: check systemctl status influxdb"
             echo ""
-            echo "   You can continue without InfluxDB by setting INFLUXDB_ENABLED=false in $INSTALL_DIR/.env"
+            echo "   You can either:"
+            echo "   1. Continue and manually fix InfluxDB later"
+            echo "   2. Abort and re-run installation choosing 'n' to skip InfluxDB"
             read -p "Continue anyway? [y/N]: " continue_anyway
-            if [ "$continue_anyway" != "y" ] && [ "$continue_anyway" != "Y" ]; then
+            continue_anyway=$(echo "$continue_anyway" | tr '[:upper:]' '[:lower:]')
+            if [ "$continue_anyway" != "y" ]; then
                 exit 1
             fi
             INFLUX_READY=0
@@ -394,12 +408,14 @@ EOF
                 else
                     echo "❌ Cannot authenticate with InfluxDB. HTTP status: $AUTH_CHECK"
                     echo "Please check the credentials and try again"
-                    echo "You may need to manually initialize InfluxDB or disable it"
+                    echo "You may need to manually initialize InfluxDB or run setup again"
                     echo ""
-                    echo "To disable InfluxDB and use file-based logging only:"
-                    echo "  echo 'INFLUXDB_ENABLED=false' >> $INSTALL_DIR/.env"
+                    echo "Options to fix this:"
+                    echo "  1. Continue and manually fix InfluxDB credentials later"
+                    echo "  2. Abort and re-run installation choosing 'n' to skip InfluxDB"
                     read -p "Continue anyway? [y/N]: " continue_anyway
-                    if [ "$continue_anyway" != "y" ] && [ "$continue_anyway" != "Y" ]; then
+                    continue_anyway=$(echo "$continue_anyway" | tr '[:upper:]' '[:lower:]')
+                    if [ "$continue_anyway" != "y" ]; then
                         exit 1
                     fi
                 fi
