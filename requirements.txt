@@ -4,6 +4,7 @@ textual
 rich
 pytest
 pytest-asyncio
+httpx
 gunicorn
 fastapi
 uvicorn

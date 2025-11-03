@@ -33,7 +33,7 @@ if env_path.exists():
 class ConfigUpdate(BaseModel):
     config: Dict[str, Any]
 
-html = """
+html = r"""
 <!DOCTYPE html>
 <html>
     <head>

@@ -1,5 +1,5 @@
 import pytest
-from metrics import diskes as disk
+from metrics import disks as disk
 
 def test_disk_metrics_structure():
     """Test the basic structure of disk metrics."""

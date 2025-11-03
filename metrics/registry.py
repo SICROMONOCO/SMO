@@ -1,6 +1,6 @@
 """Central metrics registry.
 
-This module imports the per-area metric providers (cpu, memory, diskes, networks)
+This module imports the per-area metric providers (cpu, memory, disks, networks)
 and exposes a unified registry API so the rest of the framework can fetch a
 single JSON-serializable dict of all metrics.
 
@@ -25,7 +25,7 @@ try:
     # when imported as package: use relative imports
     from . import cpu as cpu_mod
     from . import memory as memory_mod
-    from . import diskes as disk_mod
+    from . import disks as disk_mod
     from . import networks as net_mod
     from . import process as process_mod
 except ImportError:  # pragma: no cover - allow running file directly
@@ -45,16 +45,15 @@ except ImportError:  # pragma: no cover - allow running file directly
     # Import from the local 'metrics' package when executed outside a package
     cpu_mod = importlib.import_module("metrics.cpu")
     memory_mod = importlib.import_module("metrics.memory")
-    disk_mod = importlib.import_module("metrics.diskes")
+    disk_mod = importlib.import_module("metrics.disks")
     net_mod = importlib.import_module("metrics.networks")
     process_mod = importlib.import_module("metrics.process")
 
 # Registry of provider functions: name -> callable returning dict
-_PROVIDERS = {}  # existing provider registry
-_LATEST = {}
-_LOCK = threading.RLock()
+_PROVIDERS: dict[str, Callable] = {}
 _LATEST: dict[str, dict] = {}  # cache of most recent results
 _LAST_UPDATE: dict[str, float] = {}
+_LOCK = threading.RLock()
 
 def set_latest(name: str, data: dict):
     """Save the latest snapshot for a provider."""
@@ -77,10 +76,6 @@ def get_provider(name: str):
 def get_providers():
     with _LOCK:
         return list(_PROVIDERS.keys())
-
-def set_latest(name: str, value):
-    with _LOCK:
-        _LATEST[name] = value
 
 def gather_all():
     with _LOCK:
