@@ -1,4 +1,7 @@
-"""Tests for logger functionality."""
+"""Tests for logger functionality.
+
+Tests file-based JSONL logging, CSV export, and alert handling.
+After removing InfluxDB, these tests focus on core logging features."""
 import time
 import json
 import os

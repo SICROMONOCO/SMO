@@ -1342,7 +1342,8 @@ async def websocket_endpoint(websocket: WebSocket):
                             continue
                         
                         # Read backwards to find the last complete line
-                        # Start from a reasonable position (last 50KB should cover most JSON lines)
+                        # Use 50KB chunk size - large enough for typical JSON lines (5-10KB each)
+                        # but small enough to avoid memory issues with frequent reads
                         chunk_size = min(50000, file_size)
                         f.seek(max(0, file_size - chunk_size))
                         

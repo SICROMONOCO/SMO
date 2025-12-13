@@ -36,7 +36,16 @@ class MetricsLogger:
         self.log_file = log_file
 
     def log(self, snapshot: Dict[str, Any]) -> None:
-        """Log the snapshot in JSON format."""
+        """Log a metrics snapshot to JSONL file.
+        
+        Args:
+            snapshot: Dictionary containing metrics data
+            
+        Behavior:
+            - Skips alert-only snapshots (containing only 'alert' key)
+            - Automatically adds timestamp if missing
+            - Appends to log file in JSON Lines format (one JSON object per line)
+        """
         if "alert" in snapshot and len(snapshot) == 1:
             return
 
