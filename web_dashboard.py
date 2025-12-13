@@ -768,26 +768,77 @@ html = r"""
                     html += createProgressBar('Average CPU', avg.value || 0);
                 }
 
-                // Per-core CPU (show first 8 cores if available)
+                // CPU Count and Frequency
+                const count = cpu.count?.count;
+                const freq = cpu.frequency?.current;
+                if (count || freq) {
+                    html += '<div class="stat-grid">';
+                    if (count?.value) {
+                        html += `
+                            <div class="stat-item">
+                                <div class="stat-item-label">CPU Cores</div>
+                                <div class="stat-item-value">${count.value}</div>
+                            </div>
+                        `;
+                    }
+                    if (freq?.value) {
+                        html += `
+                            <div class="stat-item">
+                                <div class="stat-item-label">Frequency</div>
+                                <div class="stat-item-value">${(freq.value / 1000).toFixed(2)} GHz</div>
+                            </div>
+                        `;
+                    }
+                    html += '</div>';
+                }
+
+                // Load Average
+                const load = cpu.load;
+                if (load) {
+                    html += '<div class="stat-grid">';
+                    if (load['1min']?.value !== undefined) {
+                        html += `
+                            <div class="stat-item">
+                                <div class="stat-item-label">Load (1m)</div>
+                                <div class="stat-item-value">${load['1min'].value.toFixed(2)}</div>
+                            </div>
+                        `;
+                    }
+                    if (load['5min']?.value !== undefined) {
+                        html += `
+                            <div class="stat-item">
+                                <div class="stat-item-label">Load (5m)</div>
+                                <div class="stat-item-value">${load['5min'].value.toFixed(2)}</div>
+                            </div>
+                        `;
+                    }
+                    if (load['15min']?.value !== undefined) {
+                        html += `
+                            <div class="stat-item">
+                                <div class="stat-item-label">Load (15m)</div>
+                                <div class="stat-item-value">${load['15min'].value.toFixed(2)}</div>
+                            </div>
+                        `;
+                    }
+                    html += '</div>';
+                }
+
+                // Per-core CPU (show all cores)
                 const perCore = cpu.per_core;
                 if (perCore) {
-                    let coreCount = 0;
                     const coreGrid = [];
 
                     for (let key in perCore) {
-                        if (coreCount < 8) {
-                            const match = key.match(/^core_(\d+)_usage$/);
-                            if (!match) continue; // Skip if pattern doesn't match exactly
-                            const coreNum = match[1];
-                            const usage = perCore[key]?.value || 0;
-                            coreGrid.push(`
-                                <div class="stat-item">
-                                    <div class="stat-item-label">Core ${coreNum}</div>
-                                    <div class="stat-item-value value-${getUsageClass(usage)}">${usage.toFixed(1)}%</div>
-                                </div>
-                            `);
-                            coreCount++;
-                        }
+                        const match = key.match(/^core_(\d+)_usage$/);
+                        if (!match) continue;
+                        const coreNum = match[1];
+                        const usage = perCore[key]?.value || 0;
+                        coreGrid.push(`
+                            <div class="stat-item">
+                                <div class="stat-item-label">Core ${coreNum}</div>
+                                <div class="stat-item-value value-${getUsageClass(usage)}">${usage.toFixed(1)}%</div>
+                            </div>
+                        `);
                     }
 
                     if (coreGrid.length > 0) {
@@ -862,50 +913,90 @@ html = r"""
             }
 
             function updateNetwork(network) {
-                if (!network || !network.io_counters) return;
+                if (!network) return;
 
+                let html = '';
+
+                // Overall I/O Counters
                 const io = network.io_counters;
-                let html = '<div class="stat-grid">';
+                if (io) {
+                    html += '<div class="stat-grid">';
 
-                if (io.bytes_sent?.value !== undefined) {
-                    html += `
-                        <div class="stat-item">
-                            <div class="stat-item-label">📤 Bytes Sent</div>
-                            <div class="stat-item-value value-info">${formatBytes(io.bytes_sent.value)}</div>
-                        </div>
-                    `;
+                    if (io.bytes_sent?.value !== undefined) {
+                        html += `
+                            <div class="stat-item">
+                                <div class="stat-item-label">📤 Bytes Sent</div>
+                                <div class="stat-item-value value-info">${formatBytes(io.bytes_sent.value)}</div>
+                            </div>
+                        `;
+                    }
+
+                    if (io.bytes_recv?.value !== undefined) {
+                        html += `
+                            <div class="stat-item">
+                                <div class="stat-item-label">📥 Bytes Received</div>
+                                <div class="stat-item-value value-good">${formatBytes(io.bytes_recv.value)}</div>
+                            </div>
+                        `;
+                    }
+
+                    if (io.packets_sent?.value !== undefined) {
+                        html += `
+                            <div class="stat-item">
+                                <div class="stat-item-label">Packets Sent</div>
+                                <div class="stat-item-value">${io.packets_sent.value.toLocaleString()}</div>
+                            </div>
+                        `;
+                    }
+
+                    if (io.packets_recv?.value !== undefined) {
+                        html += `
+                            <div class="stat-item">
+                                <div class="stat-item-label">Packets Received</div>
+                                <div class="stat-item-value">${io.packets_recv.value.toLocaleString()}</div>
+                            </div>
+                        `;
+                    }
+
+                    if (io.errin?.value !== undefined || io.errout?.value !== undefined) {
+                        html += `
+                            <div class="stat-item">
+                                <div class="stat-item-label">Errors (In/Out)</div>
+                                <div class="stat-item-value value-warning">${io.errin?.value || 0} / ${io.errout?.value || 0}</div>
+                            </div>
+                        `;
+                    }
+
+                    if (io.dropin?.value !== undefined || io.dropout?.value !== undefined) {
+                        html += `
+                            <div class="stat-item">
+                                <div class="stat-item-label">Drops (In/Out)</div>
+                                <div class="stat-item-value value-warning">${io.dropin?.value || 0} / ${io.dropout?.value || 0}</div>
+                            </div>
+                        `;
+                    }
+
+                    html += '</div>';
                 }
 
-                if (io.bytes_recv?.value !== undefined) {
-                    html += `
-                        <div class="stat-item">
-                            <div class="stat-item-label">📥 Bytes Received</div>
-                            <div class="stat-item-value value-good">${formatBytes(io.bytes_recv.value)}</div>
-                        </div>
-                    `;
+                // Network Interfaces
+                const interfaces = network.interfaces;
+                if (interfaces && typeof interfaces === 'object') {
+                    html += '<div style="margin-top: 15px;"><strong>Network Interfaces:</strong></div>';
+                    html += '<div class="info-text" style="margin-top: 5px;">';
+                    
+                    for (const [iface, addrs] of Object.entries(interfaces)) {
+                        if (Array.isArray(addrs) && addrs.length > 0) {
+                            const ipv4 = addrs.find(a => a.family === 2);
+                            if (ipv4) {
+                                html += `<span><strong>${iface}:</strong> ${ipv4.address}</span>`;
+                            }
+                        }
+                    }
+                    html += '</div>';
                 }
 
-                if (io.packets_sent?.value !== undefined) {
-                    html += `
-                        <div class="stat-item">
-                            <div class="stat-item-label">Packets Sent</div>
-                            <div class="stat-item-value">${io.packets_sent.value.toLocaleString()}</div>
-                        </div>
-                    `;
-                }
-
-                if (io.packets_recv?.value !== undefined) {
-                    html += `
-                        <div class="stat-item">
-                            <div class="stat-item-label">Packets Received</div>
-                            <div class="stat-item-value">${io.packets_recv.value.toLocaleString()}</div>
-                        </div>
-                    `;
-                }
-
-                html += '</div>';
-
-                document.getElementById('network-content').innerHTML = html;
+                document.getElementById('network-content').innerHTML = html || '<div class="no-data">No network data available</div>';
             }
 
             function updateSystem(system) {
@@ -927,6 +1018,24 @@ html = r"""
                         <div class="stat-item">
                             <div class="stat-item-label">Platform</div>
                             <div class="stat-item-value">${system.platform.value}</div>
+                        </div>
+                    `;
+                }
+
+                if (system.os_release?.value) {
+                    html += `
+                        <div class="stat-item">
+                            <div class="stat-item-label">OS Release</div>
+                            <div class="stat-item-value">${system.os_release.value}</div>
+                        </div>
+                    `;
+                }
+
+                if (system.architecture?.value) {
+                    html += `
+                        <div class="stat-item">
+                            <div class="stat-item-label">Architecture</div>
+                            <div class="stat-item-value">${system.architecture.value}</div>
                         </div>
                     `;
                 }

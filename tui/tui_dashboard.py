@@ -538,6 +538,130 @@ class TUIDashboardApp(App):
                 items.append((new_key, v))
         return dict(items)
 
+    def _write_markdown_entry(self, f, log: dict, entry_num: int) -> None:
+        """Write a single log entry in structured markdown format."""
+        from datetime import datetime
+        
+        # Header
+        f.write("---\n")
+        f.write(f"# System Performance Log (Entry {entry_num})\n")
+        
+        # Timestamp
+        ts = log.get("timestamp", 0)
+        if ts:
+            dt = datetime.fromtimestamp(ts)
+            f.write(f"**Timestamp:** {dt.strftime('%Y-%m-%d %H:%M:%S')} UTC\n\n")
+        else:
+            f.write(f"**Timestamp:** N/A\n\n")
+        
+        f.write("---\n\n")
+        
+        # System Overview
+        system = log.get("system", {})
+        if system:
+            f.write("## 1. System Overview\n")
+            f.write("| Metric | Value |\n")
+            f.write("| :--- | :--- |\n")
+            f.write(f"| **Hostname** | `{system.get('hostname', {}).get('value', 'N/A')}` |\n")
+            f.write(f"| **OS** | {system.get('platform', {}).get('value', 'N/A')} |\n")
+            f.write(f"| **Uptime** | {system.get('uptime', {}).get('human_readable', 'N/A')} |\n")
+            f.write("\n")
+        
+        # CPU Usage
+        cpu = log.get("cpu", {})
+        if cpu:
+            f.write("## 2. CPU Usage\n")
+            avg_cpu = cpu.get("average", {}).get("cpu_percent", {}).get("value", 0)
+            f.write(f"**Average Load:** {avg_cpu}%\n\n")
+            
+            # Core Breakdown
+            per_core = cpu.get("per_core", {})
+            if per_core:
+                f.write("### Core Breakdown\n")
+                f.write("| Core ID | Usage (%) |\n")
+                f.write("| :--- | :--- |\n")
+                for key, val in sorted(per_core.items()):
+                    if 'core_' in key and '_usage' in key:
+                        core_num = key.replace('core_', '').replace('_usage', '')
+                        usage = val.get('value', 0)
+                        f.write(f"| Core {core_num} | {usage}% |\n")
+                f.write("\n")
+            
+            # CPU Info
+            count = cpu.get("count", {}).get("count", {}).get("value", "N/A")
+            freq = cpu.get("frequency", {}).get("current", {}).get("value", 0)
+            if count != "N/A" or freq > 0:
+                f.write("### CPU Info\n")
+                f.write(f"- **Cores:** {count}\n")
+                if freq > 0:
+                    f.write(f"- **Frequency:** {freq/1000:.2f} GHz\n")
+                f.write("\n")
+        
+        # Memory Status
+        memory = log.get("memory", {})
+        if memory:
+            f.write("## 3. Memory Status\n")
+            vmem = memory.get("virtual_memory", {})
+            percent = vmem.get("percent", {}).get("value", 0)
+            f.write(f"> **Summary:** Using **{percent}%** of available RAM.\n\n")
+            f.write(f"- **Total:** {vmem.get('total', {}).get('human_readable', 'N/A')}\n")
+            f.write(f"- **Used:** {vmem.get('used', {}).get('human_readable', 'N/A')}\n")
+            f.write(f"- **Available:** {vmem.get('available', {}).get('human_readable', 'N/A')}\n")
+            f.write("\n")
+        
+        # Disk & Storage
+        disk = log.get("disk", {})
+        if disk:
+            f.write("## 4. Disk & Storage\n")
+            # Find main partition
+            main_part = None
+            for key, val in disk.items():
+                if key not in ("io_counters", "io_counters_perdisk") and isinstance(val, dict):
+                    metrics = val.get("metrics", {})
+                    if metrics:
+                        main_part = metrics
+                        break
+            
+            if main_part:
+                usage = main_part.get("usage_percent", {}).get("value", 0)
+                free = main_part.get("free", {}).get("human_readable", "N/A")
+                total = main_part.get("total", {}).get("human_readable", "N/A")
+                f.write(f"* **Usage:** {usage}%\n")
+                f.write(f"* **Free Space:** {free}\n")
+                f.write(f"* **Total Space:** {total}\n")
+                f.write("\n")
+        
+        # Network Activity
+        network = log.get("network", {})
+        if network:
+            f.write("## 5. Network Activity\n")
+            io = network.get("io_counters", {}).get("metrics", {})
+            if io:
+                f.write("| Direction | Bytes | Packets |\n")
+                f.write("| :--- | :--- | :--- |\n")
+                bytes_sent = io.get("bytes_sent", {}).get("human_readable") or io.get("bytes_sent", {}).get("value", 0)
+                bytes_recv = io.get("bytes_recv", {}).get("human_readable") or io.get("bytes_recv", {}).get("value", 0)
+                packets_sent = io.get("packets_sent", {}).get("value", 0)
+                packets_recv = io.get("packets_recv", {}).get("value", 0)
+                f.write(f"| **Sent** | {bytes_sent} | {packets_sent:,} |\n")
+                f.write(f"| **Received** | {bytes_recv} | {packets_recv:,} |\n")
+                f.write("\n")
+        
+        # Process Details
+        process = log.get("process", {})
+        if process:
+            f.write("## 6. Process Details\n")
+            pid = process.get("pid", "N/A")
+            status = process.get("status", {}).get("value", "N/A")
+            cpu_usage = process.get("cpu", {}).get("value", 0)
+            mem_usage = process.get("memory", {}).get("percent", {}).get("value", 0)
+            f.write(f"**Focus Process:** `smo_agent` (PID: {pid})\n")
+            f.write(f"- **Status:** {status}\n")
+            f.write(f"- **CPU Consumed:** {cpu_usage}%\n")
+            f.write(f"- **Memory Consumed:** {mem_usage}%\n")
+        
+        f.write("---\n")
+
     def export_logs(self) -> None:
         """Export metric logs to the specified format and path."""
         try:
@@ -617,22 +741,13 @@ class TUIDashboardApp(App):
                         writer.writerows(flat_logs)
 
             elif selected_format == "markdown":
-                flat_logs = [self._flatten_dict(log) for log in logs]
-                if flat_logs:
-                    headers = sorted(list(set(key for log in flat_logs for key in log.keys())))
-                    with open(export_path, "w", encoding="utf-8") as f:
-                        # Add title and metadata
-                        f.write("# SMO Metrics Export\n\n")
-                        f.write(f"**Export Date:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
-                        f.write(f"**Total Entries:** {len(flat_logs)}\n\n")
-                        f.write("---\n\n")
+                # Use structured format as requested
+                with open(export_path, "w", encoding="utf-8") as f:
+                    for idx, log in enumerate(logs, 1):
+                        if idx > 1:
+                            f.write("\n\n---\n\n")
                         
-                        # Write table
-                        f.write(f"| {' | '.join(headers)} |\n")
-                        f.write(f"| {' | '.join(['---'] * len(headers))} |\n")
-                        for log in flat_logs:
-                            row = [str(log.get(h, '')) for h in headers]
-                            f.write(f"| {' | '.join(row)} |\n")
+                        self._write_markdown_entry(f, log, idx)
             else:
                 self.notify(f"Unknown export format: {selected_format}", severity="error")
                 logger.error(f"Unknown export format: {selected_format}")

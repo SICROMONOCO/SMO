@@ -6,6 +6,18 @@ import logging
 from datetime import datetime
 
 
+def _format_bytes(bytes_val):
+    """Format bytes into human-readable format."""
+    if bytes_val is None:
+        return "0 B"
+    
+    for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+        if bytes_val < 1024.0:
+            return f"{bytes_val:.2f} {unit}"
+        bytes_val /= 1024.0
+    return f"{bytes_val:.2f} PB"
+
+
 def check_threshold(value, threshold, direction="above"):
     if value is None:
         return False
@@ -86,6 +98,8 @@ def evaluate_alerts(snapshot: dict, config: dict) -> list:
     # net_io may be an empty dict; still try to read bytes_sent (default 0)
     if "network_bytes_sent" in thresholds and isinstance(net_io, dict):
         sent_val = net_io.get("bytes_sent", {}).get("value", 0)
+        sent_human = net_io.get("bytes_sent", {}).get("human_readable", "")
+        threshold_human = _format_bytes(thresholds["network_bytes_sent"])
         # sent_val may be 0; check explicitly
         if sent_val is not None and check_threshold(sent_val, thresholds["network_bytes_sent"], "above"):
             alerts.append({
@@ -94,7 +108,7 @@ def evaluate_alerts(snapshot: dict, config: dict) -> list:
                 "threshold": thresholds["network_bytes_sent"],
                 "level": "info",
                 "time": ts,
-                "message": f"High network TX: {sent_val} bytes > {thresholds['network_bytes_sent']}"
+                "message": f"High network TX: {sent_human or _format_bytes(sent_val)} > {threshold_human}"
             })
 
     return alerts
