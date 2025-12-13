@@ -770,22 +770,36 @@ html = r"""
 
                 // CPU Count and Frequency
                 const count = cpu.count?.count;
-                const freq = cpu.frequency?.current;
+                const freq = cpu.frequency?.current_freq;
                 if (count || freq) {
                     html += '<div class="stat-grid">';
                     if (count?.value) {
-                        html += `
-                            <div class="stat-item">
-                                <div class="stat-item-label">CPU Cores</div>
-                                <div class="stat-item-value">${count.value}</div>
-                            </div>
-                        `;
+                        const countVal = count.value;
+                        if (typeof countVal === 'object') {
+                            html += `
+                                <div class="stat-item">
+                                    <div class="stat-item-label">Physical Cores</div>
+                                    <div class="stat-item-value">${countVal.physical || 'N/A'}</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-item-label">Logical Cores</div>
+                                    <div class="stat-item-value">${countVal.logical || 'N/A'}</div>
+                                </div>
+                            `;
+                        } else {
+                            html += `
+                                <div class="stat-item">
+                                    <div class="stat-item-label">CPU Cores</div>
+                                    <div class="stat-item-value">${count.value}</div>
+                                </div>
+                            `;
+                        }
                     }
                     if (freq?.value) {
                         html += `
                             <div class="stat-item">
                                 <div class="stat-item-label">Frequency</div>
-                                <div class="stat-item-value">${(freq.value / 1000).toFixed(2)} GHz</div>
+                                <div class="stat-item-value">${(freq.value).toFixed(0)} MHz</div>
                             </div>
                         `;
                     }
@@ -793,33 +807,91 @@ html = r"""
                 }
 
                 // Load Average
-                const load = cpu.load;
-                if (load) {
+                const load = cpu.load?.load_average;
+                if (load && load.value) {
+                    const loadVal = load.value;
                     html += '<div class="stat-grid">';
-                    if (load['1min']?.value !== undefined) {
+                    if (loadVal['1min'] !== undefined) {
                         html += `
                             <div class="stat-item">
                                 <div class="stat-item-label">Load (1m)</div>
-                                <div class="stat-item-value">${load['1min'].value.toFixed(2)}</div>
+                                <div class="stat-item-value">${loadVal['1min'].toFixed(2)}</div>
                             </div>
                         `;
                     }
-                    if (load['5min']?.value !== undefined) {
+                    if (loadVal['5min'] !== undefined) {
                         html += `
                             <div class="stat-item">
                                 <div class="stat-item-label">Load (5m)</div>
-                                <div class="stat-item-value">${load['5min'].value.toFixed(2)}</div>
+                                <div class="stat-item-value">${loadVal['5min'].toFixed(2)}</div>
                             </div>
                         `;
                     }
-                    if (load['15min']?.value !== undefined) {
+                    if (loadVal['15min'] !== undefined) {
                         html += `
                             <div class="stat-item">
                                 <div class="stat-item-label">Load (15m)</div>
-                                <div class="stat-item-value">${load['15min'].value.toFixed(2)}</div>
+                                <div class="stat-item-value">${loadVal['15min'].toFixed(2)}</div>
                             </div>
                         `;
                     }
+                    html += '</div>';
+                }
+
+                // CPU Stats (context switches, interrupts, etc.)
+                const stats = cpu.stats;
+                if (stats) {
+                    html += '<div style="margin-top: 10px;"><strong>CPU Statistics:</strong></div>';
+                    html += '<div class="stat-grid">';
+                    
+                    if (stats.ctx_switches?.value !== undefined) {
+                        const ctxVal = stats.ctx_switches.value;
+                        const formatted = ctxVal >= 1000000 ? (ctxVal / 1000000).toFixed(2) + 'M' : 
+                                        ctxVal >= 1000 ? (ctxVal / 1000).toFixed(2) + 'K' : ctxVal;
+                        html += `
+                            <div class="stat-item">
+                                <div class="stat-item-label">Context Switches</div>
+                                <div class="stat-item-value">${formatted}</div>
+                            </div>
+                        `;
+                    }
+                    
+                    if (stats.interrupts?.value !== undefined) {
+                        const intVal = stats.interrupts.value;
+                        const formatted = intVal >= 1000000 ? (intVal / 1000000).toFixed(2) + 'M' : 
+                                        intVal >= 1000 ? (intVal / 1000).toFixed(2) + 'K' : intVal;
+                        html += `
+                            <div class="stat-item">
+                                <div class="stat-item-label">Interrupts</div>
+                                <div class="stat-item-value">${formatted}</div>
+                            </div>
+                        `;
+                    }
+                    
+                    if (stats.soft_interrupts?.value !== undefined) {
+                        const sintVal = stats.soft_interrupts.value;
+                        const formatted = sintVal >= 1000000 ? (sintVal / 1000000).toFixed(2) + 'M' : 
+                                        sintVal >= 1000 ? (sintVal / 1000).toFixed(2) + 'K' : sintVal;
+                        html += `
+                            <div class="stat-item">
+                                <div class="stat-item-label">Soft Interrupts</div>
+                                <div class="stat-item-value">${formatted}</div>
+                            </div>
+                        `;
+                    }
+                    
+                    if (stats.syscalls?.value !== undefined) {
+                        const sysVal = stats.syscalls.value;
+                        const formatted = sysVal >= 1000000 ? (sysVal / 1000000).toFixed(2) + 'M' : 
+                                        sysVal >= 1000 ? (sysVal / 1000).toFixed(2) + 'K' : sysVal;
+                        html += `
+                            <div class="stat-item">
+                                <div class="stat-item-label">Syscalls</div>
+                                <div class="stat-item-value">${formatted}</div>
+                            </div>
+                        `;
+                    }
+                    
                     html += '</div>';
                 }
 
@@ -898,6 +970,8 @@ html = r"""
                     if (metrics && metrics.usage_percent) {
                         const usage = metrics.usage_percent.value || 0;
                         const mountpoint = part.mountpoint || partKey;
+                        const device = part.device || partKey;
+                        const fstype = part.fstype || 'N/A';
 
                         html += createProgressBar(mountpoint, usage);
 
@@ -906,8 +980,58 @@ html = r"""
                         if (metrics.used?.human_readable) html += `<span class="value-warning"><strong>Used:</strong> ${metrics.used.human_readable}</span>`;
                         if (metrics.free?.human_readable) html += `<span class="value-good"><strong>Free:</strong> ${metrics.free.human_readable}</span>`;
                         html += `</div>`;
+                        
+                        html += '<div class="info-text" style="margin-top: 5px;">';
+                        html += `<span><strong>FS:</strong> ${fstype}</span>`;
+                        html += `<span><strong>Device:</strong> ${device}</span>`;
+                        html += '</div>';
                     }
                 });
+
+                // System-wide I/O Counters
+                const ioCounters = disk.io_counters?.metrics;
+                if (ioCounters) {
+                    html += '<div style="margin-top: 15px;"><strong>Disk I/O Statistics:</strong></div>';
+                    html += '<div class="stat-grid">';
+                    
+                    if (ioCounters.read_count?.value !== undefined) {
+                        html += `
+                            <div class="stat-item">
+                                <div class="stat-item-label">Read Count</div>
+                                <div class="stat-item-value">${ioCounters.read_count.value.toLocaleString()}</div>
+                            </div>
+                        `;
+                    }
+                    
+                    if (ioCounters.write_count?.value !== undefined) {
+                        html += `
+                            <div class="stat-item">
+                                <div class="stat-item-label">Write Count</div>
+                                <div class="stat-item-value">${ioCounters.write_count.value.toLocaleString()}</div>
+                            </div>
+                        `;
+                    }
+                    
+                    if (ioCounters.read_bytes?.human_readable) {
+                        html += `
+                            <div class="stat-item">
+                                <div class="stat-item-label">Read Bytes</div>
+                                <div class="stat-item-value">${ioCounters.read_bytes.human_readable}</div>
+                            </div>
+                        `;
+                    }
+                    
+                    if (ioCounters.write_bytes?.human_readable) {
+                        html += `
+                            <div class="stat-item">
+                                <div class="stat-item-label">Write Bytes</div>
+                                <div class="stat-item-value">${ioCounters.write_bytes.human_readable}</div>
+                            </div>
+                        `;
+                    }
+                    
+                    html += '</div>';
+                }
 
                 document.getElementById('disk-content').innerHTML = html || '<div class="no-data">No disk data available</div>';
             }
@@ -979,21 +1103,58 @@ html = r"""
                     html += '</div>';
                 }
 
-                // Network Interfaces
-                const interfaces = network.interfaces;
-                if (interfaces && typeof interfaces === 'object') {
-                    html += '<div style="margin-top: 15px;"><strong>Network Interfaces:</strong></div>';
-                    html += '<div class="info-text" style="margin-top: 5px;">';
+                // Active Network Interfaces (from stats)
+                const ifaceStats = network.stats?.interfaces;
+                if (ifaceStats && typeof ifaceStats === 'object') {
+                    html += '<div style="margin-top: 15px;"><strong>Active Network Interfaces:</strong></div>';
+                    html += '<div class="stat-grid">';
                     
-                    for (const [iface, addrs] of Object.entries(interfaces)) {
-                        if (Array.isArray(addrs) && addrs.length > 0) {
-                            const ipv4 = addrs.find(a => a.family === 2);
-                            if (ipv4) {
-                                html += `<span><strong>${iface}:</strong> ${ipv4.address}</span>`;
+                    for (const [iface, ifaceData] of Object.entries(ifaceStats)) {
+                        if (ifaceData.addresses) {
+                            let ipv4 = '';
+                            let mac = '';
+                            for (const addr of ifaceData.addresses) {
+                                if (addr.family === "2") {
+                                    ipv4 = addr.address;
+                                } else if (addr.family === "-1") {
+                                    mac = addr.address;
+                                }
+                            }
+                            
+                            if (ipv4 || mac) {
+                                html += `
+                                    <div class="stat-item" style="grid-column: span 2;">
+                                        <div class="stat-item-label">${iface}</div>
+                                        <div class="stat-item-value" style="font-size: 0.9em;">
+                                            ${ipv4 ? 'IP: ' + ipv4 : ''}
+                                            ${ipv4 && mac ? ' | ' : ''}
+                                            ${mac ? 'MAC: ' + mac : ''}
+                                        </div>
+                                    </div>
+                                `;
                             }
                         }
                     }
                     html += '</div>';
+                }
+
+                // Legacy interfaces display (fallback)
+                if (!ifaceStats) {
+                    const interfaces = network.interfaces;
+                    if (interfaces && typeof interfaces === 'object') {
+                        html += '<div style="margin-top: 15px;"><strong>Network Interfaces:</strong></div>';
+                        html += '<div class="info-text" style="margin-top: 5px;">';
+                        
+                        for (const [iface, addrs] of Object.entries(interfaces)) {
+                            if (Array.isArray(addrs) && addrs.length > 0) {
+                                const ipv4 = addrs.find(a => a.family === 2);
+                                if (ipv4) {
+                                    html += `<span><strong>${iface}:</strong> ${ipv4.address}</span>`;
+                                }
+                            }
+                        }
+                        html += '</div>';
+                    }
                 }
 
                 document.getElementById('network-content').innerHTML = html || '<div class="no-data">No network data available</div>';
