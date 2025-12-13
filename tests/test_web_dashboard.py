@@ -58,7 +58,8 @@ def test_config_get_endpoint(test_config_dir, monkeypatch):
     with open(config_file, 'w') as f:
         yaml.safe_dump(test_config, f)
 
-    # Monkeypatch the config path
+    # Monkeypatch the config loader's config path
+    monkeypatch.setattr('config_loader.CONFIG_PATH', config_file)
     monkeypatch.setattr('web_dashboard.CONFIG_PATH', config_file)
 
     # Import after monkeypatch
@@ -79,7 +80,8 @@ def test_config_post_endpoint(test_config_dir, monkeypatch):
     """Test POST /api/config endpoint."""
     config_file = test_config_dir / "config.yaml"
 
-    # Monkeypatch the config path
+    # Monkeypatch the config loader's config path
+    monkeypatch.setattr('config_loader.CONFIG_PATH', config_file)
     monkeypatch.setattr('web_dashboard.CONFIG_PATH', config_file)
 
     from web_dashboard import app
