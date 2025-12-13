@@ -30,6 +30,7 @@ from rich.pretty import Pretty
 from logger import logger
 from updater import start_all
 from metrics import registry
+from config_loader import load_config as load_config_base, DEFAULT_CONFIG, get_config_path
 
 # Central console for controlled, pretty printing
 console = Console(highlight=True, markup=True)
@@ -37,54 +38,19 @@ console = Console(highlight=True, markup=True)
 # ---------------------------------------------------------------------------
 # Configuration Loader
 # ---------------------------------------------------------------------------
-PROJECT_ROOT = Path(__file__).resolve().parent  # SMO directory is the root
-CONFIG_PATH = PROJECT_ROOT / "config" / "config.yaml"
-
-DEFAULT_CONFIG = {
-    "refresh": {"cpu": 2, "memory": 5, "disk": 10, "network": 5, "process": 2},
-    "logging": {"format": "json"},
-    "agent": {"snapshot_interval": 2},
-    "display": {"show_snapshot_info": True, "pretty_max_depth": 2, "pretty_max_length": 1200},
-    "alerts": {
-        "cpu_percent": 80,         # Alert when CPU usage > 80%
-        "memory_percent": 85,      # Alert when memory usage > 85%
-        "disk_usage": 90,          # Alert when disk usage > 90%
-        "network_bytes_sent": 1000000  # Alert when network traffic > 1MB/s
-    }
-}
-
-
-def _deep_merge_dicts(base: dict, override: dict) -> dict:
-    """Recursively merge two dictionaries."""
-    result = base.copy()
-    for k, v in override.items():
-        if isinstance(v, dict) and isinstance(result.get(k), dict):
-            result[k] = _deep_merge_dicts(result[k], v)
-        else:
-            result[k] = v
-    return result
-
-
 def load_config() -> dict:
-    """Load YAML config with deep merge fallback."""
-    rprint(f"[dim]🔍 Config path:[/] [cyan]{CONFIG_PATH}[/]")
-    if not CONFIG_PATH.exists():
-        CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
-        with open(CONFIG_PATH, "w") as f:
-            yaml.safe_dump(DEFAULT_CONFIG, f)
-        rprint(f"[green]✓[/] Created default config at [cyan]{CONFIG_PATH}[/]")
-        return DEFAULT_CONFIG
-
-    try:
-        with open(CONFIG_PATH, "r") as f:
-            data = yaml.safe_load(f) or {}
-        merged = _deep_merge_dicts(DEFAULT_CONFIG, data)
-        rprint(f"[green]✓[/] Loaded config from [cyan]{CONFIG_PATH}[/]")
-        return merged
-    except Exception as e:
-        rprint(f"[red]✗[/] Failed to load config: {e}")
-        rprint("[yellow]⚠[/] Using default configuration")
-        return DEFAULT_CONFIG
+    """Load YAML config with deep merge fallback and rich output."""
+    config_path = get_config_path()
+    rprint(f"[dim]🔍 Config path:[/] [cyan]{config_path}[/]")
+    
+    config = load_config_base()
+    
+    if config_path.exists():
+        rprint(f"[green]✓[/] Loaded config from [cyan]{config_path}[/]")
+    else:
+        rprint(f"[green]✓[/] Created default config at [cyan]{config_path}[/]")
+    
+    return config
 
 
 

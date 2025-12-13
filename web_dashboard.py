@@ -14,12 +14,13 @@ from typing import Dict, Any
 import csv
 from io import StringIO
 from dotenv import load_dotenv
+from config_loader import load_config, save_config, get_config_path, DEFAULT_CONFIG
 
 app = FastAPI()
 
 # Configuration paths
 PROJECT_ROOT = Path(__file__).resolve().parent
-CONFIG_PATH = PROJECT_ROOT / "config" / "config.yaml"
+CONFIG_PATH = get_config_path()
 METRICS_LOG_PATH = PROJECT_ROOT / "logs" / "smo_metrics.jsonl"
 
 # Load environment variables from .env file if it exists
@@ -1137,12 +1138,7 @@ async def get():
 async def get_config():
     """Get current configuration."""
     try:
-        if not CONFIG_PATH.exists():
-            raise HTTPException(status_code=404, detail="Configuration file not found")
-
-        with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-            config = yaml.safe_load(f) or {}
-
+        config = load_config()
         return JSONResponse(content=config)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -1151,12 +1147,10 @@ async def get_config():
 async def update_config(config_update: ConfigUpdate):
     """Update configuration."""
     try:
-        CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
-
-        with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-            yaml.safe_dump(config_update.config, f, default_flow_style=False, sort_keys=False)
-
-        return JSONResponse(content={"status": "success", "message": "Configuration saved successfully"})
+        if save_config(config_update.config):
+            return JSONResponse(content={"status": "success", "message": "Configuration saved successfully"})
+        else:
+            raise HTTPException(status_code=500, detail="Failed to save configuration")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -1164,33 +1158,10 @@ async def update_config(config_update: ConfigUpdate):
 async def reset_config():
     """Reset configuration to defaults."""
     try:
-        # Default configuration (same as in agent.py)
-        default_config = {
-            "refresh": {"cpu": 2, "memory": 5, "disk": 10, "network": 5, "process": 2},
-            "logging": {"format": "json"},
-            "agent": {"snapshot_interval": 2},
-            "display": {"show_snapshot_info": True, "pretty_max_depth": 2, "pretty_max_length": 1200},
-            "alerts": {
-                "cpu_percent": 80,
-                "memory_percent": 85,
-                "disk_usage": 90,
-                "network_bytes_sent": 1000000
-            }
-        }
-
-        # Try to import from agent module, fallback to hardcoded default
-        try:
-            from agent import DEFAULT_CONFIG
-            default_config = DEFAULT_CONFIG
-        except ImportError:
-            pass  # Use hardcoded default above
-
-        CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
-
-        with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-            yaml.safe_dump(default_config, f, default_flow_style=False, sort_keys=False)
-
-        return JSONResponse(content={"status": "success", "message": "Configuration reset to defaults"})
+        if save_config(DEFAULT_CONFIG):
+            return JSONResponse(content={"status": "success", "message": "Configuration reset to defaults"})
+        else:
+            raise HTTPException(status_code=500, detail="Failed to reset configuration")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

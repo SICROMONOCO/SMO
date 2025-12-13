@@ -48,12 +48,18 @@ from .widgets.alerts import AlertsGroup
 # Set up logging
 logger = logging.getLogger(__name__)
 
-# Import default configuration from the agent so we can truly restore defaults
+# Import centralized configuration
 try:
-    # agent.py sits at the project root; available when running `python -m tui.tui_dashboard`
-    from agent import DEFAULT_CONFIG as AGENT_DEFAULT_CONFIG
+    from config_loader import load_config, save_config, get_config_path, DEFAULT_CONFIG as AGENT_DEFAULT_CONFIG
 except Exception:  # pragma: no cover - defensive guard if import path changes
     AGENT_DEFAULT_CONFIG = {}
+    # Fallback functions if config_loader is not available
+    def load_config():
+        return AGENT_DEFAULT_CONFIG
+    def save_config(config):
+        return False
+    def get_config_path():
+        return Path(__file__).parent.parent / "config" / "config.yaml"
 
 
 # ----------------------------------------------------------------------------
@@ -247,7 +253,7 @@ class TUIDashboardApp(App):
 
     # --- Data Loading ---
 
-    CONFIG_PATH = Path(__file__).parent.parent / "config" / "config.yaml"
+    CONFIG_PATH = get_config_path()
     METRICS_LOG_PATH = Path(__file__).parent.parent / "logs" / "smo_metrics.jsonl"
 
     def load_config_to_ui(self) -> None:
@@ -276,10 +282,8 @@ class TUIDashboardApp(App):
                                 w.remove()
                             except Exception:
                                 pass
-            with open(self.CONFIG_PATH, "r", encoding="utf-8") as f:
-                config = yaml.safe_load(f)
-            if config is None:
-                config = {}
+            # Use centralized config loader
+            config = load_config()
             widgets = self._create_config_widgets(config)
             # Mount after a refresh tick to ensure removals are fully processed
             try:
@@ -331,8 +335,8 @@ class TUIDashboardApp(App):
     def save_config_from_ui(self) -> None:
         """Save the current UI input values to the config file."""
         try:
-            with open(self.CONFIG_PATH, "r", encoding="utf-8") as f:
-                config = yaml.safe_load(f) or {}
+            # Load current config
+            config = load_config()
 
             inputs = self.query("#config-editor-container Input")
             for input_widget in inputs:
@@ -341,12 +345,12 @@ class TUIDashboardApp(App):
                     value = input_widget.value
                     self._set_nested_dict_value(config, key_path, value)
 
-            self.CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
-            with open(self.CONFIG_PATH, "w", encoding="utf-8") as f:
-                yaml.safe_dump(config, f, default_flow_style=False, sort_keys=False)
-
-            self.notify("Configuration saved successfully!", severity="information")
-            logger.info("Configuration saved successfully")
+            # Use centralized save function
+            if save_config(config):
+                self.notify("Configuration saved successfully!", severity="information")
+                logger.info("Configuration saved successfully")
+            else:
+                raise IOError("Failed to save configuration")
 
         except NoMatches:
             self.notify("Config editor container not found.", severity="error")
@@ -590,8 +594,18 @@ class TUIDashboardApp(App):
                 logger.warning(f"Write test failed (non-fatal): {e}")
 
             if selected_format == "json":
+                from datetime import datetime
+                # Add metadata wrapper for better structure
+                export_data = {
+                    "export_metadata": {
+                        "export_date": datetime.now().isoformat(),
+                        "total_entries": len(logs),
+                        "format": "json"
+                    },
+                    "metrics": logs
+                }
                 with open(export_path, "w", encoding="utf-8") as f:
-                    json.dump(logs, f, indent=2)
+                    json.dump(export_data, f, indent=2)
 
             elif selected_format == "csv":
                 flat_logs = [self._flatten_dict(log) for log in logs]
@@ -605,8 +619,16 @@ class TUIDashboardApp(App):
             elif selected_format == "markdown":
                 flat_logs = [self._flatten_dict(log) for log in logs]
                 if flat_logs:
+                    from datetime import datetime
                     headers = sorted(list(set(key for log in flat_logs for key in log.keys())))
                     with open(export_path, "w", encoding="utf-8") as f:
+                        # Add title and metadata
+                        f.write("# SMO Metrics Export\n\n")
+                        f.write(f"**Export Date:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+                        f.write(f"**Total Entries:** {len(flat_logs)}\n\n")
+                        f.write("---\n\n")
+                        
+                        # Write table
                         f.write(f"| {' | '.join(headers)} |\n")
                         f.write(f"| {' | '.join(['---'] * len(headers))} |\n")
                         for log in flat_logs:
@@ -661,14 +683,14 @@ class TUIDashboardApp(App):
                 # Non-fatal; proceed but log the backup failure
                 logger.warning(f"Failed to backup existing config: {be}")
 
-            # Overwrite with defaults from agent
-            with open(self.CONFIG_PATH, "w", encoding="utf-8") as f:
-                yaml.safe_dump(AGENT_DEFAULT_CONFIG, f, default_flow_style=False, sort_keys=False)
-
-            # Refresh UI inputs to reflect restored defaults
-            self.load_config_to_ui()
-            self.notify("Configuration restored to defaults.", severity="information")
-            logger.info("Configuration restored to defaults from agent.DEFAULT_CONFIG")
+            # Use centralized save function to write defaults
+            if save_config(AGENT_DEFAULT_CONFIG):
+                # Refresh UI inputs to reflect restored defaults
+                self.load_config_to_ui()
+                self.notify("Configuration restored to defaults.", severity="information")
+                logger.info("Configuration restored to defaults from config_loader.DEFAULT_CONFIG")
+            else:
+                raise IOError("Failed to save default configuration")
 
         except IOError as e:
             self.notify(f"File error while restoring defaults: {e}", severity="error")
