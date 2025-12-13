@@ -14,6 +14,7 @@ import csv
 import subprocess
 import sys
 import threading
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
 
@@ -594,7 +595,6 @@ class TUIDashboardApp(App):
                 logger.warning(f"Write test failed (non-fatal): {e}")
 
             if selected_format == "json":
-                from datetime import datetime
                 # Add metadata wrapper for better structure
                 export_data = {
                     "export_metadata": {
@@ -619,7 +619,6 @@ class TUIDashboardApp(App):
             elif selected_format == "markdown":
                 flat_logs = [self._flatten_dict(log) for log in logs]
                 if flat_logs:
-                    from datetime import datetime
                     headers = sorted(list(set(key for log in flat_logs for key in log.keys())))
                     with open(export_path, "w", encoding="utf-8") as f:
                         # Add title and metadata

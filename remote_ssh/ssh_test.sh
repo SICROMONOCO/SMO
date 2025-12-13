@@ -85,10 +85,10 @@ main(){
     check_reverse_tunnel || true
 
     if [ $fail -eq 0 ]; then
-        echo "\nAll critical checks passed."
+        printf '\nAll critical checks passed.\n'
         return 0
     else
-        echo "\nOne or more checks failed. See messages above for details."
+        printf '\nOne or more checks failed. See messages above for details.\n'
         return 2
     fi
 }
