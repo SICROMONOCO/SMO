@@ -1,5 +1,5 @@
 """Logging utilities for SMO metrics snapshots.
-Provides functions to log snapshots to InfluxDB and JSONL format.
+Provides functions to log snapshots to JSONL format.
 """
 
 from __future__ import annotations
@@ -7,18 +7,9 @@ import csv
 import json
 import os
 from datetime import datetime
-from typing import Any, Dict, Iterator, List, Tuple
+from typing import Any, Dict, Iterator
 from pathlib import Path
 from io import StringIO
-from dotenv import load_dotenv
-from influxdb_client import InfluxDBClient, Point
-from influxdb_client.client.write_api import SYNCHRONOUS
-
-# Load environment variables from .env file if it exists
-# This ensures InfluxDB credentials are loaded for standalone installations
-env_path = Path(__file__).resolve().parent / ".env"
-if env_path.exists():
-    load_dotenv(env_path)
 
 _METADATA_KEYS = {
     "unit",
@@ -43,48 +34,9 @@ os.makedirs(LOG_DIR, exist_ok=True)
 class MetricsLogger:
     def __init__(self, log_file: str = JSON_LOG):
         self.log_file = log_file
-        self.influx_client = None
-        self._init_influxdb()
-
-    def _init_influxdb(self):
-        """Initialize InfluxDB client if available, otherwise disable it gracefully.
-        
-        This makes InfluxDB optional - the logger will work with just file-based logging
-        if InfluxDB is not available or configured.
-        """
-        # Check if InfluxDB should be disabled (accepts: true/1 or false/0)
-        influx_enabled_str = os.environ.get("INFLUXDB_ENABLED", "true").lower()
-        influx_enabled = influx_enabled_str in ("true", "1")
-        
-        if not influx_enabled:
-            print("ℹ️  InfluxDB is disabled via INFLUXDB_ENABLED environment variable")
-            print("  Metrics will be logged to file only")
-            self.influx_client = None
-            return
-
-        try:
-            url = os.environ.get("INFLUXDB_URL", "http://smo-db:8086")
-            token = os.environ.get("INFLUXDB_TOKEN", "my-super-secret-token")
-            org = os.environ.get("INFLUXDB_ORG", "my-org")
-            self.bucket = os.environ.get("INFLUXDB_BUCKET", "smo-metrics")
-
-            print(f"Initializing InfluxDB client:")
-            print(f"  URL: {url}")
-            print(f"  Org: {org}")
-            print(f"  Bucket: {self.bucket}")
-            print(f"  Token: {'*' * max(0, len(token) - 10) + token[-10:] if len(token) > 10 else '***'}")
-
-            self.influx_client = InfluxDBClient(url=url, token=token, org=org)
-            self.write_api = self.influx_client.write_api(write_options=SYNCHRONOUS)
-            print("✓ InfluxDB client initialized successfully")
-        except Exception as e:
-            print(f"⚠️  Failed to initialize InfluxDB client: {e}")
-            print("  Metrics will be logged to file only (InfluxDB disabled)")
-            print("  This is normal for standalone installations without InfluxDB")
-            self.influx_client = None
 
     def log(self, snapshot: Dict[str, Any]) -> None:
-        """Log the snapshot in JSON format and write to InfluxDB."""
+        """Log the snapshot in JSON format."""
         if "alert" in snapshot and len(snapshot) == 1:
             return
 
@@ -97,84 +49,6 @@ class MetricsLogger:
                 f.write(json.dumps(snapshot, ensure_ascii=False) + "\n")
         except Exception:
             pass
-
-        # Write to InfluxDB (optional - only if client is initialized)
-        if self.influx_client:
-            try:
-                points = self._snapshot_to_points(snapshot)
-                if points:
-                    self.write_api.write(bucket=self.bucket, record=points)
-            except Exception as e:
-                # InfluxDB write failed - this is non-fatal since file logging still works
-                # Only log on first failure to avoid spam
-                if not hasattr(self, '_influx_error_logged'):
-                    print(f"⚠️  InfluxDB write failed (will not be logged again): {e}")
-                    print("  File-based logging is still working normally")
-                    self._influx_error_logged = True
-
-    def _snapshot_to_points(self, snapshot: Dict[str, Any]) -> List[Point]:
-        points: List[Point] = []
-
-        # Ensure timestamp exists and is valid
-        timestamp_value = snapshot.get("timestamp")
-        if timestamp_value is None:
-            timestamp = datetime.now()
-        else:
-            try:
-                timestamp = datetime.fromtimestamp(timestamp_value)
-            except (ValueError, TypeError, OSError):
-                timestamp = datetime.now()
-
-        for metric, data in snapshot.items():
-            if metric in {"timestamp", "alerts"}:
-                continue
-
-            field_values = dict(self._iter_numeric_fields(data))
-            if not field_values:
-                continue
-
-            point = Point(metric).time(timestamp)
-            for field_name, value in field_values.items():
-                try:
-                    point.field(field_name, value)
-                except Exception:
-                    # Skip invalid fields
-                    continue
-            points.append(point)
-        return points
-
-    def _iter_numeric_fields(self, payload: Any, prefix: Tuple[str, ...] = ()) -> Iterator[Tuple[str, int | float]]:
-        """Yield flattened numeric fields from nested payload structures.
-
-        Preserves integer types for fields like 'pid' to avoid InfluxDB type conflicts.
-        """
-
-        if isinstance(payload, dict):
-            # Handle dicts that directly expose numeric values via the "value" key
-            if "value" in payload:
-                value = payload["value"]
-                if isinstance(value, (int, float)):
-                    # Preserve integer type, convert float to float
-                    yield self._build_field_name(prefix or ("value",)), value
-                elif isinstance(value, (dict, list)):
-                    yield from self._iter_numeric_fields(value, prefix)
-
-            for key, value in payload.items():
-                if key in _METADATA_KEYS or key == "value":
-                    continue
-                yield from self._iter_numeric_fields(value, prefix + (key,))
-
-        elif isinstance(payload, list):
-            for idx, item in enumerate(payload):
-                yield from self._iter_numeric_fields(item, prefix + (str(idx),))
-
-        elif isinstance(payload, (int, float)):
-            # Preserve the original type (int or float)
-            yield self._build_field_name(prefix or ("value",)), payload
-
-    def _build_field_name(self, parts: Tuple[str, ...]) -> str:
-        safe_parts = [part.replace(" ", "_") for part in parts if part]
-        return "_".join(safe_parts) or "value"
 
     def write_alert(self, alert: Dict[str, Any]) -> None:
         pass

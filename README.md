@@ -1,165 +1,189 @@
-# System Monitoring and Orchestration Tool
+# System Monitoring and Orchestration Tool (SMO)
 
-This project is a comprehensive system monitoring tool with a Textual TUI, a web dashboard, and a remote monitoring agent.
-
-## Installation Options
-
-SMO can be deployed in two ways:
-
-### 1. Docker Installation (Recommended for most users)
-
-The entire application is containerized with Docker for easy deployment and development.
-
-**Quick Start:**
-```bash
-./setup.sh
-```
-
-See [CONTAINERIZATION.md](CONTAINERIZATION.md) for details.
-
-### 2. Standalone Installation (Direct host installation)
-
-Install SMO directly on your Linux system without Docker. InfluxDB is optional.
-
-**Quick Start:**
-```bash
-sudo ./setup-standalone.sh
-```
-
-During installation, you'll be asked if you want to install InfluxDB:
-- Choose **Yes** for full installation with historical metrics storage
-- Choose **No** for minimal installation with file-based logging only
-
-See [docs/STANDALONE_INSTALLATION.md](docs/STANDALONE_INSTALLATION.md) for details.
-
-## Quick Start
-
-### Easy Setup (Recommended)
-
-Run the interactive setup script:
-
-```bash
-./setup.sh
-```
-
-The script will guide you through configuration and let you choose between:
-- **Container Metrics Mode**: Monitor Docker containers (good for development)
-- **Host Metrics Mode**: Monitor your actual Linux host machine (good for production)
-
-### Manual Setup
-
-See [CONTAINERIZATION.md](CONTAINERIZATION.md) for detailed containerization documentation.
+A lightweight, modern system monitoring tool with both a terminal-based TUI and a web dashboard.
 
 ## Features
 
 - 📊 **Real-time Metrics**: CPU, Memory, Disk, Network, and Process monitoring
 - 🖥️ **Interactive TUI**: Terminal-based dashboard with live updates
 - 🌐 **Web Dashboard**: Browser-based interface with visual charts and graphs
-- 💾 **InfluxDB Integration** (Optional): Time-series data storage for historical analysis
+- 📁 **File-Based Logging**: Simple JSONL format for easy processing
 - 🔔 **Alerting System**: Configurable thresholds and notifications
-- 🐋 **Containerized**: Easy deployment with Docker Compose
-- 🖧 **Host Monitoring**: Support for monitoring actual host machine metrics
-- 📁 **File-Based Logging**: Works without database setup (InfluxDB optional)
+- ⚡ **Lightweight**: No database dependencies, minimal overhead
 
 ## Prerequisites
 
-Before using SMO, you need:
+- Python 3.8 or higher
+- pip (Python package manager)
 
-- **Docker Engine** (20.10.0 or later) - [Installation Guide](https://docs.docker.com/engine/install/)
-- **Docker Compose** (v1.27.0+ or Docker Compose plugin v2.0.0+)
-- **Linux** (for host metrics mode) or any OS with Docker support (for container metrics mode)
+## Installation
 
-**Quick check:**
+1. Clone the repository:
 ```bash
-docker --version
-docker compose version  # or: docker-compose --version
+git clone https://github.com/SICROMONOCO/SMO.git
+cd SMO
 ```
 
-If Docker is not installed, see [docs/DOCKER_SETUP.md](docs/DOCKER_SETUP.md) for installation instructions or run the setup script which will provide guidance.
-
-## Docker Compose Setup
-
-The application is orchestrated using Docker Compose. The following services are defined:
-
-| Service      | Description                                          |
-|--------------|------------------------------------------------------|
-| `smo-agent`  | The main monitoring agent that collects system metrics. |
-| `smo-web`    | A FastAPI web dashboard with WebSockets for real-time metrics. |
-| `smo-tui`    | A Textual-based TUI for interactive monitoring.       |
-| `smo-db`     | An InfluxDB instance for storing metrics data (optional). |
-| `smo-remote` | A minimal SSH server for testing remote monitoring.   |
-
-**Note:** Both the web dashboard and TUI read metrics directly from log files, so InfluxDB is optional. The web dashboard and TUI will work even if InfluxDB is not running or configured.
-
-### Prerequisites
-
-- Docker
-- Docker Compose
-- Linux host (for host metrics mode)
-
-### Running the Application
-
-#### Container Metrics Mode (Default)
-
-Monitors the Docker containers themselves:
-
+2. Install dependencies:
 ```bash
-# Copy environment template
-cp .env.example .env
-
-# Build and start
-docker-compose up -d
-
-# Run TUI
-docker-compose run --rm smo-tui
+pip install -r requirements.txt
 ```
 
-**Access:**
-- Web Dashboard: [http://localhost:5678](http://localhost:5678)
-- InfluxDB UI: [http://localhost:8086](http://localhost:8086)
+## Usage
 
-#### Host Metrics Mode (Linux Only)
+### Running the Agent
 
-Monitors your actual Linux host machine:
+Start the monitoring agent to collect metrics:
 
 ```bash
-# Copy environment template
-cp .env.example .env
-
-# Build and start with host monitoring
-docker-compose -f docker-compose.yml -f docker-compose.host.yml up -d
-
-# Run TUI with host metrics
-docker-compose -f docker-compose.yml -f docker-compose.host.yml run --rm smo-tui
+python3 agent.py run
 ```
 
-**Access:**
-- Web Dashboard: [http://localhost:5000](http://localhost:5000)
-- InfluxDB UI: [http://localhost:8086](http://localhost:8086)
+The agent will continuously collect system metrics and log them to `logs/smo_metrics.jsonl`.
 
-> **Note:** Host metrics mode requires privileged containers and is only available on Linux.
+### Viewing Metrics
 
-### Common Commands
+#### Terminal UI (TUI)
 
-**View logs:**
+Launch the interactive terminal dashboard:
+
 ```bash
-docker-compose logs -f
+python3 agent.py tui
 ```
 
-**Stop services:**
+Or:
+
 ```bash
-docker-compose down
+python3 app.py
 ```
 
-**Restart services:**
+The TUI provides real-time system metrics with an intuitive interface.
+
+#### Web Dashboard
+
+Start the web dashboard server:
+
 ```bash
-docker-compose restart
+python3 -m uvicorn web_dashboard:app --host 0.0.0.0 --port 5000
+```
+
+Then open your browser to: [http://localhost:5000](http://localhost:5000)
+
+The web dashboard features:
+- Live metrics via WebSocket
+- Configuration editor
+- Log export functionality (JSON, CSV, Markdown)
+
+### Additional Commands
+
+- **Single snapshot**: `python3 agent.py once`
+- **View logs**: `python3 agent.py logs`
+- **Print to console**: `python3 agent.py run --print`
+
+## Configuration
+
+Edit `config/config.yaml` to customize:
+- Refresh intervals for each metric type
+- Alert thresholds
+- Display settings
+- Logging format
+
+Example configuration:
+```yaml
+refresh:
+  cpu: 2
+  memory: 5
+  disk: 10
+  network: 5
+  process: 2
+
+alerts:
+  cpu_percent: 80
+  memory_percent: 85
+  disk_usage: 90
+  network_bytes_sent: 1000000
+
+agent:
+  snapshot_interval: 2
+
+logging:
+  format: json
+
+display:
+  show_snapshot_info: true
+  pretty_max_depth: 2
+  pretty_max_length: 1200
+```
+
+## Project Structure
+
+```
+SMO/
+├── agent.py              # Main agent runtime controller
+├── app.py                # TUI entry point
+├── web_dashboard.py      # Web dashboard server
+├── logger.py             # Metrics logging utilities
+├── alerts.py             # Alert processing
+├── updater.py            # Threaded metrics updater
+├── metrics/              # Metrics collectors
+│   ├── registry.py       # Metrics registry
+│   ├── cpu.py
+│   ├── memory.py
+│   ├── disk.py
+│   ├── network.py
+│   └── process.py
+├── tui/                  # Terminal UI components
+│   ├── tui_dashboard.py
+│   └── widgets/
+├── config/               # Configuration files
+│   └── config.yaml
+├── logs/                 # Metrics logs (auto-generated)
+│   └── smo_metrics.jsonl
+└── tests/                # Test suite
+```
+
+## Running Tests
+
+Run the test suite:
+
+```bash
+python3 -m pytest
+```
+
+Run specific tests:
+
+```bash
+python3 -m pytest tests/test_metrics_cpu.py
+python3 -m pytest tests/test_web_dashboard.py
+```
+
+## Log Format
+
+Metrics are logged in JSONL (JSON Lines) format. Each line is a complete JSON object representing a snapshot:
+
+```json
+{
+  "timestamp": 1702497234.567,
+  "cpu": {
+    "average": {"cpu_percent": {"value": 45.2, "unit": "%"}},
+    "per_core": {...}
+  },
+  "memory": {...},
+  "disk": {...},
+  "network": {...},
+  "system": {...},
+  "process": {...}
+}
 ```
 
 ## Documentation
 
-- 📖 [CONTAINERIZATION.md](CONTAINERIZATION.md) - Docker containerization guide
-- 🖥️ [STANDALONE_INSTALLATION.md](docs/STANDALONE_INSTALLATION.md) - Standalone (non-Docker) installation guide
-- 📘 [USAGE.md](USAGE.md) - Application usage and features
-- 🐳 [DOCKER_SETUP.md](docs/DOCKER_SETUP.md) - Docker installation guide
-- 🔧 Configuration files in `config/` directory
+- [USAGE.md](USAGE.md) - Detailed usage instructions and features
+
+## License
+
+This project is open source and available under the MIT License.
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.

@@ -22,8 +22,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 CONFIG_PATH = PROJECT_ROOT / "config" / "config.yaml"
 METRICS_LOG_PATH = PROJECT_ROOT / "logs" / "smo_metrics.jsonl"
 
-# Load environment variables from .env file
-# This is important for standalone installations where .env contains InfluxDB credentials
+# Load environment variables from .env file if it exists
 env_path = PROJECT_ROOT / ".env"
 if env_path.exists():
     load_dotenv(env_path)
@@ -1310,8 +1309,7 @@ def _logs_to_markdown(logs: list) -> str:
 async def websocket_endpoint(websocket: WebSocket):
     """WebSocket endpoint that streams metrics from the JSON log file.
     
-    This implementation reads directly from the metrics log file (like the TUI does)
-    instead of requiring InfluxDB, making it work in standalone mode without database setup.
+    This implementation reads directly from the metrics log file for real-time updates.
     """
     await websocket.accept()
 

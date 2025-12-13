@@ -1,55 +1,55 @@
-"""Tests for logger type preservation to fix InfluxDB type conflicts."""
+"""Tests for logger functionality."""
 import time
+import json
+import os
 from logger import MetricsLogger
 
 
-def test_integer_type_preservation():
-    """Test that integer fields like pid are preserved as integers."""
-    logger = MetricsLogger('/tmp/test_logger.jsonl')
-    # Disable InfluxDB for this test
-    logger.influx_client = None
+def test_logger_writes_jsonl():
+    """Test that logger writes JSONL format correctly."""
+    test_file = '/tmp/test_logger_jsonl.jsonl'
+    if os.path.exists(test_file):
+        os.remove(test_file)
+    
+    logger = MetricsLogger(test_file)
 
-    # Test data with pid as integer
+    # Test data
     test_snapshot = {
         'timestamp': time.time(),
         'process': {
             'type': 'dynamic',
-            'pid': 12345,  # Integer - should stay integer
+            'pid': 12345,
             'uptime': {
-                'value': 100.5,  # Float - should stay float
+                'value': 100.5,
                 'unit': 'seconds'
-            },
-            'cpu': {
-                'value': 25,  # Integer - should stay integer
-                'unit': 'percent'
             }
         }
     }
 
-    # Extract fields
-    fields = list(logger._iter_numeric_fields(test_snapshot['process']))
-    field_dict = dict(fields)
-
-    # Verify types are preserved
-    assert 'pid' in field_dict
-    assert isinstance(field_dict['pid'], int), f"pid should be int, got {type(field_dict['pid']).__name__}"
-    assert field_dict['pid'] == 12345
-
-    assert 'uptime' in field_dict
-    assert isinstance(field_dict['uptime'], float), f"uptime should be float, got {type(field_dict['uptime']).__name__}"
-    assert field_dict['uptime'] == 100.5
-
-    assert 'cpu' in field_dict
-    assert isinstance(field_dict['cpu'], int), f"cpu should be int, got {type(field_dict['cpu']).__name__}"
-    assert field_dict['cpu'] == 25
+    # Log the snapshot
+    logger.log(test_snapshot)
+    
+    # Verify file exists and contains data
+    assert os.path.exists(test_file)
+    
+    with open(test_file, 'r') as f:
+        line = f.readline()
+        data = json.loads(line)
+        assert 'timestamp' in data
+        assert 'process' in data
+        assert data['process']['pid'] == 12345
 
 
-def test_float_type_preservation():
-    """Test that float fields remain as floats."""
-    logger = MetricsLogger('/tmp/test_logger.jsonl')
-    logger.influx_client = None
+def test_logger_csv_export():
+    """Test that CSV export works correctly."""
+    test_file = '/tmp/test_logger_csv.jsonl'
+    if os.path.exists(test_file):
+        os.remove(test_file)
+    
+    logger = MetricsLogger(test_file)
 
     test_data = {
+        'timestamp': time.time(),
         'cpu': {
             'average': {
                 'cpu_percent': {
@@ -59,38 +59,31 @@ def test_float_type_preservation():
         }
     }
 
-    fields = list(logger._iter_numeric_fields(test_data['cpu']))
-    field_dict = dict(fields)
+    logger.log(test_data)
+    csv_output = logger.transform_to_csv(test_data)
+    
+    assert csv_output
+    assert 'timestamp' in csv_output
+    assert 'cpu' in csv_output
 
-    assert 'average_cpu_percent' in field_dict
-    assert isinstance(field_dict['average_cpu_percent'], float)
-    assert field_dict['average_cpu_percent'] == 45.7
 
+def test_logger_handles_alerts():
+    """Test that logger properly handles alert-only snapshots."""
+    test_file = '/tmp/test_logger_alerts.jsonl'
+    if os.path.exists(test_file):
+        os.remove(test_file)
+    
+    logger = MetricsLogger(test_file)
 
-def test_nested_value_extraction():
-    """Test that nested values are correctly extracted with proper types."""
-    logger = MetricsLogger('/tmp/test_logger.jsonl')
-    logger.influx_client = None
-
-    test_data = {
-        'memory': {
-            'virtual_memory': {
-                'total': {
-                    'value': 17179869184  # Large integer
-                },
-                'percent': {
-                    'value': 85.3  # Float
-                }
-            }
-        }
+    # Alert-only snapshot should be ignored
+    alert_snapshot = {
+        'alert': 'test alert'
     }
-
-    fields = list(logger._iter_numeric_fields(test_data['memory']))
-    field_dict = dict(fields)
-
-    # Check both fields exist and have correct types
-    assert 'virtual_memory_total' in field_dict
-    assert isinstance(field_dict['virtual_memory_total'], int)
-
-    assert 'virtual_memory_percent' in field_dict
-    assert isinstance(field_dict['virtual_memory_percent'], float)
+    
+    logger.log(alert_snapshot)
+    
+    # File should either not exist or be empty
+    if os.path.exists(test_file):
+        with open(test_file, 'r') as f:
+            content = f.read()
+            assert content == ''
