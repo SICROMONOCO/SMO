@@ -1,5 +1,19 @@
 refresh:
   cpu: 3
   memory: 6
+  disk: 10
+  network: 5
+  process: 2
+logging:
+  format: json
+agent:
+  snapshot_interval: 2
+display:
+  show_snapshot_info: true
+  pretty_max_depth: 2
+  pretty_max_length: 120
 alerts:
   cpu_percent: 90
+  memory_percent: 85
+  disk_usage: 90
+  network_bytes_sent: 1000000

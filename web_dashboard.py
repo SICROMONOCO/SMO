@@ -1,4 +1,4 @@
-from fastapi import FastAPI, WebSocket, HTTPException
+from fastapi import FastAPI, WebSocket, HTTPException, Response
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -7,6 +7,10 @@ import json
 import os
 import yaml
 import tempfile
+import time
+import platform
+import socket
+import psutil
 from pathlib import Path
 from starlette.websockets import WebSocketDisconnect, WebSocketState
 from starlette.background import BackgroundTask
@@ -40,6 +44,8 @@ html = r"""
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
+            @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700&display=swap');
+
             * {
                 margin: 0;
                 padding: 0;
@@ -47,101 +53,129 @@ html = r"""
             }
 
             body {
-                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                background: #0a0a0a;
-                color: #f0f0f0;
-                padding: 20px;
+                font-family: 'Manrope', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                background: radial-gradient(140% 140% at 10% 10%, #1c2342 0%, #0f1224 40%, #0a0c18 75%);
+                color: #f6f7fb;
+                padding: 32px 16px;
                 line-height: 1.6;
             }
 
-            .header {
-                text-align: center;
-                margin-bottom: 30px;
-                padding: 20px;
-                background: linear-gradient(135deg, #1a1a1a, #2a2a2a);
-                border-radius: 10px;
-                box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            .page {
+                max-width: 1380px;
+                margin: 0 auto;
             }
 
-            h1 {
-                color: #4a9eff;
-                font-size: 2.5em;
-                margin-bottom: 10px;
-                text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            .header {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 16px;
+                margin-bottom: 24px;
+                padding: 18px 20px;
+                background: rgba(18, 22, 44, 0.85);
+                border-radius: 16px;
+                border: 1px solid rgba(112, 143, 255, 0.15);
+                box-shadow: 0 12px 36px rgba(0,0,0,0.35);
+            }
+
+            .header-left h1 {
+                color: #e8ecff;
+                font-size: 1.9em;
+                margin-bottom: 4px;
+                letter-spacing: 0.2px;
             }
 
             .subtitle {
-                color: #888;
-                font-size: 1.1em;
+                color: #9fb2d5;
+                font-size: 0.98em;
+            }
+
+            .header-badges {
+                display: flex;
+                gap: 10px;
+                flex-wrap: wrap;
+            }
+
+            .badge {
+                background: rgba(111, 169, 255, 0.12);
+                border: 1px solid rgba(111, 169, 255, 0.25);
+                color: #cfe1ff;
+                border-radius: 12px;
+                padding: 10px 12px;
+                font-weight: 600;
+                font-size: 0.95em;
             }
 
             .dashboard-grid {
                 display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-                gap: 20px;
-                margin-bottom: 20px;
+                grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+                gap: 14px;
+                margin-bottom: 14px;
             }
 
             .metric-group {
-                background: #121212;
-                border: 2px solid #4a4a4a;
-                border-radius: 10px;
-                padding: 20px;
-                box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-                transition: transform 0.2s, box-shadow 0.2s;
+                background: rgba(14, 16, 30, 0.85);
+                border: 1px solid rgba(120, 145, 255, 0.14);
+                border-radius: 14px;
+                padding: 14px 14px 18px 14px;
+                box-shadow: 0 10px 28px rgba(0,0,0,0.33);
+                transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
             }
 
             .metric-group:hover {
                 transform: translateY(-2px);
-                box-shadow: 0 6px 12px rgba(0,0,0,0.4);
+                border-color: rgba(169, 196, 255, 0.4);
+                box-shadow: 0 14px 34px rgba(0,0,0,0.38);
             }
 
             .metric-group-title {
-                background: #2a2a2a;
-                color: #e0e0e0;
-                padding: 10px 15px;
-                margin: -20px -20px 20px -20px;
-                border-radius: 8px 8px 0 0;
-                font-weight: bold;
-                font-size: 1.3em;
-                border-bottom: 3px solid #4a4a4a;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                color: #e9edff;
+                padding: 8px 10px;
+                margin: -6px -4px 12px -4px;
+                font-weight: 700;
+                font-size: 1.05em;
+                letter-spacing: 0.1px;
             }
 
             .metric-row {
                 display: flex;
                 align-items: center;
-                margin-bottom: 15px;
-                padding: 8px 0;
+                margin-bottom: 12px;
+                padding: 4px 0;
+                gap: 12px;
             }
 
             .metric-label {
-                font-weight: bold;
-                color: #4dd0e1;
-                min-width: 140px;
-                font-size: 0.95em;
+                font-weight: 700;
+                color: #c4d4ff;
+                min-width: 120px;
+                font-size: 0.92em;
             }
 
             .metric-value {
                 flex: 1;
                 display: flex;
                 flex-direction: column;
-                gap: 5px;
+                gap: 4px;
             }
 
             .progress-bar-container {
                 width: 100%;
-                height: 24px;
-                background: #1a1a1a;
+                height: 18px;
+                background: rgba(255, 255, 255, 0.05);
                 border-radius: 12px;
                 overflow: hidden;
-                border: 1px solid #333;
+                border: 1px solid rgba(255,255,255,0.06);
                 position: relative;
             }
 
             .progress-bar {
                 height: 100%;
                 border-radius: 12px;
-                transition: width 0.5s ease, background 0.3s ease;
+                transition: width 0.35s ease, background 0.3s ease;
                 position: relative;
                 background: linear-gradient(90deg, var(--bar-color), var(--bar-color-light));
             }
@@ -151,65 +185,68 @@ html = r"""
                 top: 50%;
                 left: 50%;
                 transform: translate(-50%, -50%);
-                font-weight: bold;
-                font-size: 0.9em;
-                color: #fff;
-                text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+                font-weight: 700;
+                font-size: 0.8em;
+                color: #eaf0ff;
+                letter-spacing: 0.1px;
                 z-index: 1;
             }
 
             .info-text {
-                color: #bbb;
-                font-size: 0.9em;
-                margin-top: 3px;
+                color: #a9b5d5;
+                font-size: 0.86em;
+                margin-top: 2px;
+                display: flex;
+                flex-wrap: wrap;
+                gap: 10px;
             }
 
             .info-text span {
-                margin-right: 15px;
+                margin-right: 0;
             }
 
-            .value-good { color: #4caf50; }
-            .value-warning { color: #ff9800; }
-            .value-critical { color: #f44336; }
-            .value-info { color: #2196f3; }
+            .value-good { color: #6fe3a6; }
+            .value-warning { color: #ffb84d; }
+            .value-critical { color: #ff6b6b; }
+            .value-info { color: #7ac6ff; }
 
             .bar-good {
-                --bar-color: #4caf50;
-                --bar-color-light: #66bb6a;
+                --bar-color: #4acb8a;
+                --bar-color-light: #5fe3a6;
             }
             .bar-warning {
-                --bar-color: #ff9800;
-                --bar-color-light: #ffa726;
+                --bar-color: #ffad42;
+                --bar-color-light: #ffc76a;
             }
             .bar-critical {
-                --bar-color: #f44336;
-                --bar-color-light: #ef5350;
+                --bar-color: #f75c7a;
+                --bar-color-light: #ff7b97;
             }
 
             .stat-grid {
                 display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-                gap: 10px;
-                margin-top: 10px;
+                grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+                gap: 8px;
+                margin-top: 8px;
             }
 
             .stat-item {
-                background: #1a1a1a;
-                padding: 10px;
-                border-radius: 5px;
-                border: 1px solid #333;
+                background: rgba(255,255,255,0.03);
+                padding: 10px 12px;
+                border-radius: 10px;
+                border: 1px solid rgba(255,255,255,0.04);
             }
 
             .stat-item-label {
-                color: #888;
-                font-size: 0.85em;
-                margin-bottom: 3px;
+                color: #9fb2d5;
+                font-size: 0.82em;
+                margin-bottom: 2px;
             }
 
             .stat-item-value {
-                font-weight: bold;
-                font-size: 1.1em;
-                color: #4dd0e1;
+                font-weight: 700;
+                font-size: 1.04em;
+                color: #dfe8ff;
             }
 
             .alert-banner {
@@ -268,35 +305,38 @@ html = r"""
 
             /* Tab Navigation */
             .tabs {
-                display: flex;
-                gap: 10px;
-                margin-bottom: 20px;
-                border-bottom: 2px solid #4a4a4a;
-                padding-bottom: 10px;
+                display: inline-flex;
+                gap: 8px;
+                padding: 6px;
+                background: rgba(255,255,255,0.04);
+                border: 1px solid rgba(255,255,255,0.05);
+                border-radius: 12px;
+                margin-bottom: 18px;
             }
 
             .tab-button {
-                background: #1a1a1a;
-                border: 2px solid #4a4a4a;
-                border-bottom: none;
-                color: #888;
-                padding: 12px 24px;
+                background: transparent;
+                border: 1px solid transparent;
+                color: #9fb2d5;
+                padding: 10px 14px;
                 cursor: pointer;
-                border-radius: 8px 8px 0 0;
-                font-size: 1em;
-                font-weight: bold;
-                transition: all 0.3s ease;
+                border-radius: 10px;
+                font-size: 0.95em;
+                font-weight: 700;
+                transition: all 0.2s ease;
             }
 
             .tab-button:hover {
-                background: #2a2a2a;
-                color: #f0f0f0;
+                color: #e9edff;
+                border-color: rgba(255,255,255,0.12);
+                background: rgba(255,255,255,0.04);
             }
 
             .tab-button.active {
-                background: #2a2a2a;
-                color: #4a9eff;
-                border-color: #4a9eff;
+                color: #111321;
+                background: linear-gradient(135deg, #8ec5ff, #70a2ff);
+                border-color: transparent;
+                box-shadow: 0 8px 20px rgba(0,0,0,0.25);
             }
 
             .tab-content {
@@ -450,66 +490,73 @@ html = r"""
         </style>
     </head>
     <body>
-        <div class="header">
-            <h1>🖥️ SMO Dashboard</h1>
-            <div class="subtitle">System Monitoring & Orchestration - Live Metrics</div>
-        </div>
-
-        <!-- Tab Navigation -->
-        <div class="tabs">
-            <button class="tab-button active" onclick="switchTab('metrics')">📊 Live Metrics</button>
-            <button class="tab-button" onclick="switchTab('config')">⚙️ Config Editor</button>
-            <button class="tab-button" onclick="switchTab('logs')">📄 Log Exporter</button>
-        </div>
-
-        <!-- Live Metrics Tab -->
-        <div id="metrics-tab" class="tab-content active">
-            <div id="alerts-container"></div>
-
-            <div class="dashboard-grid">
-            <div class="metric-group" id="cpu-group">
-                <div class="metric-group-title">⚡ CPU Stats</div>
-                <div id="cpu-content" class="no-data">
-                    <div class="loading"></div> Loading CPU data...
+        <div class="page">
+            <div class="header">
+                <div class="header-left">
+                    <h1>SMO Dashboard</h1>
+                    <div class="subtitle">System monitoring & live orchestration</div>
+                </div>
+                <div class="header-badges">
+                    <div class="badge" id="badge-uptime">Live</div>
+                    <div class="badge" id="badge-refresh">1s refresh</div>
                 </div>
             </div>
 
-            <div class="metric-group" id="memory-group">
-                <div class="metric-group-title">💾 Memory</div>
-                <div id="memory-content" class="no-data">
-                    <div class="loading"></div> Loading memory data...
-                </div>
+            <!-- Tab Navigation -->
+            <div class="tabs">
+                <button class="tab-button active" onclick="switchTab('metrics')">Live Metrics</button>
+                <button class="tab-button" onclick="switchTab('config')">Config</button>
+                <button class="tab-button" onclick="switchTab('logs')">Exports</button>
             </div>
 
-            <div class="metric-group" id="disk-group">
-                <div class="metric-group-title">💿 Disk Usage</div>
-                <div id="disk-content" class="no-data">
-                    <div class="loading"></div> Loading disk data...
-                </div>
-            </div>
+            <!-- Live Metrics Tab -->
+            <div id="metrics-tab" class="tab-content active">
+                <div id="alerts-container"></div>
 
-            <div class="metric-group" id="network-group">
-                <div class="metric-group-title">🌐 Network I/O</div>
-                <div id="network-content" class="no-data">
-                    <div class="loading"></div> Loading network data...
+                <div class="dashboard-grid">
+                <div class="metric-group" id="cpu-group">
+                    <div class="metric-group-title">CPU Stats</div>
+                    <div id="cpu-content" class="no-data">
+                        <div class="loading"></div> Loading CPU data...
+                    </div>
                 </div>
-            </div>
 
-            <div class="metric-group" id="system-group">
-                <div class="metric-group-title">ℹ️ System Info</div>
-                <div id="system-content" class="no-data">
-                    <div class="loading"></div> Loading system data...
+                <div class="metric-group" id="memory-group">
+                    <div class="metric-group-title">Memory</div>
+                    <div id="memory-content" class="no-data">
+                        <div class="loading"></div> Loading memory data...
+                    </div>
                 </div>
-            </div>
 
-            <div class="metric-group" id="process-group">
-                <div class="metric-group-title">🔄 Process Metrics</div>
-                <div id="process-content" class="no-data">
-                    <div class="loading"></div> Loading process data...
+                <div class="metric-group" id="disk-group">
+                    <div class="metric-group-title">Disk Usage</div>
+                    <div id="disk-content" class="no-data">
+                        <div class="loading"></div> Loading disk data...
+                    </div>
+                </div>
+
+                <div class="metric-group" id="network-group">
+                    <div class="metric-group-title">Network I/O</div>
+                    <div id="network-content" class="no-data">
+                        <div class="loading"></div> Loading network data...
+                    </div>
+                </div>
+
+                <div class="metric-group" id="system-group">
+                    <div class="metric-group-title">System Info</div>
+                    <div id="system-content" class="no-data">
+                        <div class="loading"></div> Loading system data...
+                    </div>
+                </div>
+
+                <div class="metric-group" id="process-group">
+                    <div class="metric-group-title">Process Metrics</div>
+                    <div id="process-content" class="no-data">
+                        <div class="loading"></div> Loading process data...
+                    </div>
                 </div>
             </div>
-        </div>
-        </div>
+            </div>
 
         <!-- Config Editor Tab -->
         <div id="config-tab" class="tab-content">
@@ -1042,60 +1089,69 @@ html = r"""
                 let html = '';
 
                 // Overall I/O Counters
-                const io = network.io_counters;
+                const io = (network.io_counters && network.io_counters.metrics) || network.io_counters;
                 if (io) {
                     html += '<div class="stat-grid">';
 
-                    if (io.bytes_sent?.value !== undefined) {
+                    const bytesSent = io.bytes_sent?.value ?? io.bytes_sent;
+                    const bytesRecv = io.bytes_recv?.value ?? io.bytes_recv;
+                    const packetsSent = io.packets_sent?.value ?? io.packets_sent;
+                    const packetsRecv = io.packets_recv?.value ?? io.packets_recv;
+                    const errIn = io.errin?.value ?? io.errin;
+                    const errOut = io.errout?.value ?? io.errout;
+                    const dropIn = io.dropin?.value ?? io.dropin;
+                    const dropOut = io.dropout?.value ?? io.dropout;
+
+                    if (bytesSent !== undefined) {
                         html += `
                             <div class="stat-item">
                                 <div class="stat-item-label">📤 Bytes Sent</div>
-                                <div class="stat-item-value value-info">${formatBytes(io.bytes_sent.value)}</div>
+                                <div class="stat-item-value value-info">${formatBytes(bytesSent)}</div>
                             </div>
                         `;
                     }
 
-                    if (io.bytes_recv?.value !== undefined) {
+                    if (bytesRecv !== undefined) {
                         html += `
                             <div class="stat-item">
                                 <div class="stat-item-label">📥 Bytes Received</div>
-                                <div class="stat-item-value value-good">${formatBytes(io.bytes_recv.value)}</div>
+                                <div class="stat-item-value value-good">${formatBytes(bytesRecv)}</div>
                             </div>
                         `;
                     }
 
-                    if (io.packets_sent?.value !== undefined) {
+                    if (packetsSent !== undefined) {
                         html += `
                             <div class="stat-item">
                                 <div class="stat-item-label">Packets Sent</div>
-                                <div class="stat-item-value">${io.packets_sent.value.toLocaleString()}</div>
+                                <div class="stat-item-value">${packetsSent.toLocaleString()}</div>
                             </div>
                         `;
                     }
 
-                    if (io.packets_recv?.value !== undefined) {
+                    if (packetsRecv !== undefined) {
                         html += `
                             <div class="stat-item">
                                 <div class="stat-item-label">Packets Received</div>
-                                <div class="stat-item-value">${io.packets_recv.value.toLocaleString()}</div>
+                                <div class="stat-item-value">${packetsRecv.toLocaleString()}</div>
                             </div>
                         `;
                     }
 
-                    if (io.errin?.value !== undefined || io.errout?.value !== undefined) {
+                    if (errIn !== undefined || errOut !== undefined) {
                         html += `
                             <div class="stat-item">
                                 <div class="stat-item-label">Errors (In/Out)</div>
-                                <div class="stat-item-value value-warning">${io.errin?.value || 0} / ${io.errout?.value || 0}</div>
+                                <div class="stat-item-value value-warning">${errIn || 0} / ${errOut || 0}</div>
                             </div>
                         `;
                     }
 
-                    if (io.dropin?.value !== undefined || io.dropout?.value !== undefined) {
+                    if (dropIn !== undefined || dropOut !== undefined) {
                         html += `
                             <div class="stat-item">
                                 <div class="stat-item-label">Drops (In/Out)</div>
-                                <div class="stat-item-value value-warning">${io.dropin?.value || 0} / ${io.dropout?.value || 0}</div>
+                                <div class="stat-item-value value-warning">${dropIn || 0} / ${dropOut || 0}</div>
                             </div>
                         `;
                     }
@@ -1103,58 +1159,39 @@ html = r"""
                     html += '</div>';
                 }
 
-                // Active Network Interfaces (from stats)
-                const ifaceStats = network.stats?.interfaces;
-                if (ifaceStats && typeof ifaceStats === 'object') {
+                // Active Network Interfaces (addresses from interfaces section)
+                const ifaceAddresses = (network.interfaces && network.interfaces.interfaces) || network.interfaces;
+                if (ifaceAddresses && typeof ifaceAddresses === 'object') {
                     html += '<div style="margin-top: 15px;"><strong>Active Network Interfaces:</strong></div>';
                     html += '<div class="stat-grid">';
-                    
-                    for (const [iface, ifaceData] of Object.entries(ifaceStats)) {
-                        if (ifaceData.addresses) {
-                            let ipv4 = '';
-                            let mac = '';
-                            for (const addr of ifaceData.addresses) {
-                                if (addr.family === "2") {
-                                    ipv4 = addr.address;
-                                } else if (addr.family === "-1") {
-                                    mac = addr.address;
-                                }
+
+                    for (const [iface, ifaceData] of Object.entries(ifaceAddresses)) {
+                        const addresses = ifaceData.addresses || [];
+                        let ipv4 = '';
+                        let mac = '';
+                        for (const addr of addresses) {
+                            if (addr.family === 2 || addr.family === "2") {
+                                ipv4 = addr.address;
                             }
-                            
-                            if (ipv4 || mac) {
-                                html += `
-                                    <div class="stat-item" style="grid-column: span 2;">
-                                        <div class="stat-item-label">${iface}</div>
-                                        <div class="stat-item-value" style="font-size: 0.9em;">
-                                            ${ipv4 ? 'IP: ' + ipv4 : ''}
-                                            ${ipv4 && mac ? ' | ' : ''}
-                                            ${mac ? 'MAC: ' + mac : ''}
-                                        </div>
+                            if (addr.family === 17 || addr.family === "17" || addr.family === "-1") {
+                                mac = addr.address;
+                            }
+                        }
+
+                        if (ipv4 || mac) {
+                            html += `
+                                <div class="stat-item" style="grid-column: span 2;">
+                                    <div class="stat-item-label">${iface}</div>
+                                    <div class="stat-item-value" style="font-size: 0.9em;">
+                                        ${ipv4 ? 'IP: ' + ipv4 : ''}
+                                        ${ipv4 && mac ? ' | ' : ''}
+                                        ${mac ? 'MAC: ' + mac : ''}
                                     </div>
-                                `;
-                            }
+                                </div>
+                            `;
                         }
                     }
                     html += '</div>';
-                }
-
-                // Legacy interfaces display (fallback)
-                if (!ifaceStats) {
-                    const interfaces = network.interfaces;
-                    if (interfaces && typeof interfaces === 'object') {
-                        html += '<div style="margin-top: 15px;"><strong>Network Interfaces:</strong></div>';
-                        html += '<div class="info-text" style="margin-top: 5px;">';
-                        
-                        for (const [iface, addrs] of Object.entries(interfaces)) {
-                            if (Array.isArray(addrs) && addrs.length > 0) {
-                                const ipv4 = addrs.find(a => a.family === 2);
-                                if (ipv4) {
-                                    html += `<span><strong>${iface}:</strong> ${ipv4.address}</span>`;
-                                }
-                            }
-                        }
-                        html += '</div>';
-                    }
                 }
 
                 document.getElementById('network-content').innerHTML = html || '<div class="no-data">No network data available</div>';
@@ -1226,52 +1263,57 @@ html = r"""
             }
 
             function updateProcess(process) {
-                if (!process || !process.agent_process) return;
+                if (!process) return;
 
-                const agent = process.agent_process;
+                const agent = process.agent_process || process;
                 let html = '<div class="stat-grid">';
 
-                if (agent.pid?.value) {
+                const pid = agent.pid?.value ?? agent.pid;
+                if (pid) {
                     html += `
                         <div class="stat-item">
                             <div class="stat-item-label">Process ID</div>
-                            <div class="stat-item-value">${agent.pid.value}</div>
+                            <div class="stat-item-value">${pid}</div>
                         </div>
                     `;
                 }
 
-                if (agent.status?.value) {
+                const status = agent.status?.value ?? agent.status;
+                if (status) {
                     html += `
                         <div class="stat-item">
                             <div class="stat-item-label">Status</div>
-                            <div class="stat-item-value value-good">${agent.status.value}</div>
+                            <div class="stat-item-value value-good">${status}</div>
                         </div>
                     `;
                 }
 
-                if (agent.cpu_percent?.value !== undefined) {
+                const cpuPct = agent.cpu_percent?.value ?? agent.cpu_percent;
+                if (cpuPct !== undefined) {
                     html += `
                         <div class="stat-item">
                             <div class="stat-item-label">CPU Usage</div>
-                            <div class="stat-item-value value-${getUsageClass(agent.cpu_percent.value)}">${agent.cpu_percent.value.toFixed(1)}%</div>
+                            <div class="stat-item-value value-${getUsageClass(cpuPct)}">${Number(cpuPct).toFixed(1)}%</div>
                         </div>
                     `;
                 }
 
-                if (agent.memory_percent?.value !== undefined) {
+                const memPct = agent.memory_percent?.value ?? agent.memory_percent;
+                if (memPct !== undefined) {
                     html += `
                         <div class="stat-item">
                             <div class="stat-item-label">Memory Usage</div>
-                            <div class="stat-item-value value-${getUsageClass(agent.memory_percent.value)}">${agent.memory_percent.value.toFixed(1)}%</div>
+                            <div class="stat-item-value value-${getUsageClass(memPct)}">${Number(memPct).toFixed(1)}%</div>
                         </div>
                     `;
                 }
 
-                if (agent.num_threads?.value) {
+                const threads = agent.num_threads?.value ?? agent.num_threads ?? agent.threads?.count?.value;
+                if (threads) {
                     html += `
                         <div class="stat-item">
                             <div class="stat-item-label">Threads</div>
-                            <div class="stat-item-value">${agent.num_threads.value}</div>
+                            <div class="stat-item-value">${threads}</div>
                         </div>
                     `;
                 }
@@ -1399,9 +1441,82 @@ html = r"""
 </html>
 """
 
+# Server-side helpers to enrich snapshots for the web UI
+def _build_system_info():
+    try:
+        boot_ts = psutil.boot_time()
+        now = time.time()
+        return {
+            "hostname": {"value": socket.gethostname()},
+            "platform": {"value": platform.system()},
+            "os_release": {"value": platform.release()},
+            "architecture": {"value": platform.machine()},
+            "uptime": {"human_readable": _format_seconds(now - boot_ts)},
+            "boot_time": {"value": boot_ts},
+        }
+    except Exception:
+        return None
+
+
+def _format_seconds(seconds: float) -> str:
+    secs = int(seconds)
+    mins, sec = divmod(secs, 60)
+    hrs, mins = divmod(mins, 60)
+    days, hrs = divmod(hrs, 24)
+    parts = []
+    if days:
+        parts.append(f"{days}d")
+    if hrs:
+        parts.append(f"{hrs}h")
+    if mins:
+        parts.append(f"{mins}m")
+    if sec or not parts:
+        parts.append(f"{sec}s")
+    return " ".join(parts)
+
+
+def _normalize_process_payload(snapshot: dict) -> dict:
+    proc = snapshot.get("process")
+    if not proc or "agent_process" in proc:
+        return snapshot
+
+    cpu_percent = None
+    if isinstance(proc.get("cpu"), dict):
+        cpu_percent = proc["cpu"].get("value")
+    if cpu_percent is None:
+        cpu_percent = proc.get("cpu_percent", {}).get("value")
+
+    mem_percent = None
+    if isinstance(proc.get("memory"), dict):
+        mem_percent = proc["memory"].get("percent", {}).get("value")
+
+    threads = None
+    if isinstance(proc.get("threads"), dict):
+        threads = proc["threads"].get("count", {}).get("value")
+
+    agent_process = {
+        "pid": {"value": proc.get("pid")},
+        "status": {"value": proc.get("status", "running")},
+        "cpu_percent": {"value": cpu_percent} if cpu_percent is not None else None,
+        "memory_percent": {"value": mem_percent} if mem_percent is not None else None,
+        "num_threads": {"value": threads} if threads is not None else None,
+    }
+
+    # Drop Nones to keep payload small
+    agent_process = {k: v for k, v in agent_process.items() if v is not None}
+    proc = dict(proc)
+    proc["agent_process"] = agent_process
+    snapshot["process"] = proc
+    return snapshot
+
 @app.get("/")
 async def get():
     return HTMLResponse(html)
+
+# Simple favicon placeholder to avoid 404 noise
+@app.get("/favicon.ico")
+async def favicon():
+    return Response(status_code=204)
 
 # Configuration API endpoints
 @app.get("/api/config")
@@ -1455,15 +1570,35 @@ async def export_logs(format: str = "json", filename: str = "smo_metrics_export"
         if not METRICS_LOG_PATH.exists():
             raise HTTPException(status_code=404, detail="Metrics log file not found")
 
-        # Read all logs
+        # Read all logs with tolerant parsing (skip malformed lines)
         logs = []
+        skipped = 0
         with open(METRICS_LOG_PATH, "r", encoding="utf-8") as f:
-            for line in f:
-                if line.strip():
+            for raw in f:
+                line = raw.strip()
+                if not line:
+                    continue
+                try:
+                    # Strip potential BOM
+                    if line and line[0] == "\ufeff":
+                        line = line.lstrip("\ufeff")
+
                     try:
-                        logs.append(json.loads(line))
+                        record = json.loads(line)
                     except json.JSONDecodeError:
-                        continue
+                        # Fallback: extract JSON object substring if the line has prefixes
+                        start = line.find("{")
+                        end = line.rfind("}")
+                        if start != -1 and end != -1 and end > start:
+                            record = json.loads(line[start:end+1])
+                        else:
+                            raise
+                    logs.append(record)
+                except Exception:
+                    skipped += 1
+
+        if skipped:
+            print(f"[export_logs] skipped {skipped} malformed log line(s)")
 
         if not logs:
             raise HTTPException(status_code=404, detail="No logs to export")
@@ -1556,6 +1691,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
     print(f"WebSocket client connected - streaming from {METRICS_LOG_PATH}")
 
+    parse_failures = 0
     try:
         while True:
             try:
@@ -1583,9 +1719,9 @@ async def websocket_endpoint(websocket: WebSocket):
                             continue
                         
                         # Read backwards to find the last complete line
-                        # Use 50KB chunk size - large enough for typical JSON lines (5-10KB each)
-                        # but small enough to avoid memory issues with frequent reads
-                        chunk_size = min(50000, file_size)
+                        # Use a generous 1MB chunk to handle very large JSON lines (observed ~75KB)
+                        # while still bounding memory use for frequent reads
+                        chunk_size = min(1024 * 1024, file_size)
                         f.seek(max(0, file_size - chunk_size))
                         
                         # Read the chunk and split into lines
@@ -1608,22 +1744,55 @@ async def websocket_endpoint(websocket: WebSocket):
                     await asyncio.sleep(1)
                     continue
 
-                if last_line:
+                # Try to parse the most recent valid line (scan backwards)
+                parsed = None
+
+                def _try_parse(text: str):
                     try:
-                        metrics_data = json.loads(last_line)
-                        # Send the complete metrics snapshot to the client
-                        await websocket.send_text(json.dumps(metrics_data, indent=2))
-                    except json.JSONDecodeError as e:
-                        print(f"Error parsing metrics JSON: {e}")
-                        await websocket.send_text(json.dumps({
-                            "error": "Error parsing metrics data"
-                        }))
+                        return json.loads(text)
+                    except json.JSONDecodeError:
+                        start = text.find("{")
+                        end = text.rfind("}")
+                        if start != -1 and end != -1 and end > start:
+                            return json.loads(text[start:end+1])
+                        # As a last resort, try parsing from the last '{' to end (handles concatenated objects)
+                        last = text.rfind("{")
+                        if last != -1:
+                            return json.loads(text[last:])
+                        raise
+
+                for candidate in reversed(lines):
+                    candidate = candidate.strip()
+                    if not candidate:
+                        continue
+                    if candidate.startswith("\ufeff"):
+                        candidate = candidate.lstrip("\ufeff")
+                    try:
+                        parsed = _try_parse(candidate)
+                        break
+                    except Exception:
+                        continue
+
+                if parsed is not None:
+                    parse_failures = 0
+                    parsed = _normalize_process_payload(parsed)
+                    if "system" not in parsed:
+                        sys_info = _build_system_info()
+                        if sys_info:
+                            parsed["system"] = sys_info
+                    await websocket.send_text(json.dumps(parsed, indent=2))
                 else:
-                    # No data yet, send a waiting message
-                    await websocket.send_text(json.dumps({
-                        "info": "Waiting for metrics data...",
-                        "suggestion": "The agent is starting up or no metrics have been collected yet"
-                    }))
+                    parse_failures += 1
+                    if parse_failures <= 3 or parse_failures % 20 == 0:
+                        print(f"Warning: no valid metrics lines found ({parse_failures})")
+                    if parse_failures % 10 == 0:
+                        await websocket.send_text(json.dumps({
+                            "info": "Waiting for a valid metrics line...",
+                            "suggestion": "Ensure the agent writes valid JSON lines to logs/smo_metrics.jsonl"
+                        }))
+                    else:
+                        # Avoid flooding; small delay already at loop end
+                        pass
 
             except WebSocketDisconnect:
                 print("WebSocket client disconnected")
@@ -1640,6 +1809,9 @@ async def websocket_endpoint(websocket: WebSocket):
 
             # Wait before reading the next snapshot (1 second refresh rate)
             await asyncio.sleep(1)
+    except asyncio.CancelledError:
+        # Graceful shutdown
+        pass
     except Exception as e:
         error_msg = str(e)
         print(f"WebSocket error: {error_msg}")
@@ -1648,5 +1820,5 @@ async def websocket_endpoint(websocket: WebSocket):
                 await websocket.send_text(json.dumps({
                     "error": f"WebSocket error: {error_msg}"
                 }))
-        except:
+        except Exception:
             pass
