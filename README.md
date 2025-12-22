@@ -425,7 +425,6 @@ This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) f
 
 | Resource | Purpose |
 |----------|---------|
-| [USAGE.md](USAGE.md) | Detailed step-by-step usage instructions |
 | [Issues](https://github.com/SICROMONOCO/SMO/issues) | Bug reports and feature requests |
 | [Discussions](https://github.com/SICROMONOCO/SMO/discussions) | Community Q&A and ideas |
 
