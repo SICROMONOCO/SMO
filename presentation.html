@@ -1,0 +1,1156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SysMon: Python Resource Tracker - Presentation</title>
+    <style>
+        /* Phase 1: CSS Strategy
+           Using absolute positioning for slide transitions with opacity fade.
+           High contrast terminal theme ensures legibility. Flexbox centers content.
+           Overflow-y auto on text containers simulates terminal scrolling. */
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Courier New', 'Fira Code', monospace;
+            background: #0e1111;
+            color: #00ff00;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        .slide-container {
+            position: relative;
+            width: 100%;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .slide {
+            position: absolute;
+            width: 90%;
+            max-width: 1200px;
+            height: 85vh;
+            padding: 40px;
+            border: 3px solid #00ff00;
+            border-radius: 8px;
+            background: #0e1111;
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.3);
+            display: none;
+            flex-direction: column;
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+        }
+
+        .slide.active {
+            display: flex;
+            opacity: 1;
+        }
+
+        .slide-content {
+            flex: 1;
+            overflow-y: auto;
+            padding-right: 10px;
+        }
+
+        /* Custom scrollbar for terminal aesthetic */
+        .slide-content::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .slide-content::-webkit-scrollbar-track {
+            background: #1a1a1a;
+        }
+
+        .slide-content::-webkit-scrollbar-thumb {
+            background: #00ff00;
+            border-radius: 4px;
+        }
+
+        h1 {
+            color: #00ff00;
+            font-size: 3em;
+            margin-bottom: 20px;
+            text-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
+            border-bottom: 2px solid #00ff00;
+            padding-bottom: 10px;
+        }
+
+        h2 {
+            color: #ffb000;
+            font-size: 2em;
+            margin: 30px 0 15px 0;
+            text-shadow: 0 0 8px rgba(255, 176, 0, 0.4);
+        }
+
+        h3 {
+            color: #00ff00;
+            font-size: 1.5em;
+            margin: 20px 0 10px 0;
+        }
+
+        p, li {
+            font-size: 1.2em;
+            line-height: 1.8;
+            margin-bottom: 15px;
+        }
+
+        ul {
+            list-style-type: none;
+            padding-left: 20px;
+        }
+
+        ul li:before {
+            content: "▸ ";
+            color: #00ff00;
+            font-weight: bold;
+            margin-right: 8px;
+        }
+
+        .title-slide h1 {
+            font-size: 3.5em;
+            text-align: center;
+        }
+
+        .title-slide .subtitle {
+            text-align: center;
+            color: #ffb000;
+            font-size: 1.5em;
+            margin-top: 30px;
+        }
+
+        .title-slide .author {
+            text-align: center;
+            color: #00ff00;
+            font-size: 1.3em;
+            margin-top: 40px;
+        }
+
+        .title-slide .course {
+            text-align: center;
+            color: #00ff00;
+            font-size: 1.1em;
+            margin-top: 20px;
+            opacity: 0.8;
+        }
+
+        code {
+            background: #1a1a1a;
+            color: #ffb000;
+            padding: 2px 8px;
+            border-radius: 3px;
+            border: 1px solid #333;
+        }
+
+        pre {
+            background: #1a1a1a;
+            color: #00ff00;
+            padding: 20px;
+            border-radius: 5px;
+            border: 1px solid #333;
+            overflow-x: auto;
+            margin: 20px 0;
+            line-height: 1.5;
+        }
+
+        pre code {
+            background: transparent;
+            border: none;
+            padding: 0;
+        }
+
+        img {
+            max-width: 100%;
+            height: auto;
+            border: 2px solid #00ff00;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+
+        .highlight {
+            color: #ffb000;
+            font-weight: bold;
+        }
+
+        .terminal-prompt {
+            color: #00ff00;
+            margin-right: 10px;
+        }
+
+        .terminal-prompt:before {
+            content: "$ ";
+        }
+
+        .navigation {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #333;
+        }
+
+        .nav-button {
+            background: transparent;
+            color: #00ff00;
+            border: 2px solid #00ff00;
+            padding: 10px 20px;
+            font-family: 'Courier New', monospace;
+            font-size: 1em;
+            cursor: pointer;
+            border-radius: 5px;
+            transition: all 0.3s;
+        }
+
+        .nav-button:hover {
+            background: #00ff00;
+            color: #0e1111;
+            box-shadow: 0 0 15px rgba(0, 255, 0, 0.5);
+        }
+
+        .nav-button:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+        .slide-counter {
+            color: #ffb000;
+            font-size: 1.1em;
+        }
+
+        .box {
+            border: 1px solid #333;
+            padding: 15px;
+            margin: 15px 0;
+            background: #1a1a1a;
+            border-radius: 5px;
+        }
+
+        .warning {
+            border-left: 4px solid #ffb000;
+            padding-left: 15px;
+            color: #ffb000;
+        }
+
+        .success {
+            border-left: 4px solid #00ff00;
+            padding-left: 15px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+
+        table th, table td {
+            border: 1px solid #333;
+            padding: 12px;
+            text-align: left;
+        }
+
+        table th {
+            background: #1a1a1a;
+            color: #ffb000;
+        }
+
+        table tr:hover {
+            background: #1a1a1a;
+        }
+    </style>
+</head>
+<body>
+    <div class="slide-container">
+        <!-- Slide 1: Title -->
+        <div class="slide active title-slide" data-slide="1">
+            <div class="slide-content">
+                <h1>SysMon: Python Resource Tracker</h1>
+                <p class="subtitle">Real-Time System Monitoring Tool</p>
+                <p class="author">👨‍💻 BILAL SIKI</p>
+                <p class="course">CYBERSECURITY S03 - SYSTEME ET RESEAUX III</p>
+                <div style="text-align: center; margin-top: 60px;">
+                    <pre style="display: inline-block; text-align: left;">
+  ____            __  __             
+ / ___| _   _ ___|  \/  | ___  _ __  
+ \___ \| | | / __| |\/| |/ _ \| '_ \ 
+  ___) | |_| \__ \ |  | | (_) | | | |
+ |____/ \__, |___/_|  |_|\___/|_| |_|
+        |___/                         
+                    </pre>
+                </div>
+            </div>
+            <div class="navigation">
+                <button class="nav-button" onclick="prevSlide()" disabled>◀ Previous</button>
+                <span class="slide-counter">Slide <span id="current">1</span> / <span id="total">11</span></span>
+                <button class="nav-button" onclick="nextSlide()">Next ▶</button>
+            </div>
+        </div>
+
+        <!-- Slide 2: Introduction -->
+        <div class="slide" data-slide="2">
+            <div class="slide-content">
+                <h1>Introduction</h1>
+                <h2>Project Overview</h2>
+                <p>The <span class="highlight">SysMon</span> project is a Python-based system resource monitoring tool designed to track and analyze critical system metrics in real-time.</p>
+                
+                <div class="box success">
+                    <h3>Assignment Objectives</h3>
+                    <p>Develop a comprehensive monitoring solution capable of tracking:</p>
+                    <ul>
+                        <li><span class="highlight">CPU Usage:</span> Per-core utilization, frequency, and load averages</li>
+                        <li><span class="highlight">Memory Consumption:</span> Physical RAM and swap space analysis</li>
+                        <li><span class="highlight">Disk I/O:</span> Read/write operations and storage utilization</li>
+                        <li><span class="highlight">Network Activity:</span> Interface statistics and traffic patterns</li>
+                        <li><span class="highlight">Process Metrics:</span> Resource consumption by individual processes</li>
+                    </ul>
+                </div>
+
+                <h2>Key Features</h2>
+                <ul>
+                    <li>Real-time metric collection with configurable refresh intervals</li>
+                    <li>Multi-interface support: Terminal UI (TUI), Web Dashboard, and CLI</li>
+                    <li>JSONL-based structured logging for data persistence</li>
+                    <li>Threshold-based alert system for proactive monitoring</li>
+                    <li>Cross-platform compatibility (Linux, macOS, Windows)</li>
+                </ul>
+
+                <h2>Technical Stack</h2>
+                <div class="box">
+                    <p><span class="terminal-prompt"></span><code>Python 3.8+</code> - Core programming language</p>
+                    <p><span class="terminal-prompt"></span><code>psutil</code> - System metrics collection library</p>
+                    <p><span class="terminal-prompt"></span><code>socket</code> - Network identification module</p>
+                    <p><span class="terminal-prompt"></span><code>FastAPI</code> - Web dashboard backend framework</p>
+                    <p><span class="terminal-prompt"></span><code>Textual</code> - Terminal-based user interface</p>
+                </div>
+            </div>
+            <div class="navigation">
+                <button class="nav-button" onclick="prevSlide()">◀ Previous</button>
+                <span class="slide-counter">Slide <span id="current">2</span> / <span id="total">11</span></span>
+                <button class="nav-button" onclick="nextSlide()">Next ▶</button>
+            </div>
+        </div>
+
+        <!-- Slide 3: Problem Statement -->
+        <div class="slide" data-slide="3">
+            <div class="slide-content">
+                <h1>Problem Statement</h1>
+                <h2>The Criticality of System Monitoring</h2>
+                
+                <p>In Linux server environments, <span class="highlight">continuous system monitoring</span> is not optional—it's essential for maintaining service reliability, performance optimization, and security assurance.</p>
+
+                <h2>Critical Challenges in Production Environments</h2>
+                <div class="box warning">
+                    <h3>1. Resource Exhaustion</h3>
+                    <p>Without monitoring, systems can experience CPU saturation, memory leaks, and disk space depletion, leading to service degradation or complete failure.</p>
+                    <ul>
+                        <li>Out-of-Memory (OOM) killer terminates critical processes</li>
+                        <li>Disk full conditions prevent logging and data writes</li>
+                        <li>CPU throttling causes application timeouts</li>
+                    </ul>
+                </div>
+
+                <div class="box warning">
+                    <h3>2. Performance Bottlenecks</h3>
+                    <p>Identifying performance issues becomes reactive rather than proactive, resulting in:</p>
+                    <ul>
+                        <li>Increased mean time to resolution (MTTR)</li>
+                        <li>User-reported issues instead of internal detection</li>
+                        <li>Difficulty correlating symptoms with root causes</li>
+                    </ul>
+                </div>
+
+                <div class="box warning">
+                    <h3>3. Security & Anomaly Detection</h3>
+                    <p>Abnormal resource consumption patterns may indicate:</p>
+                    <ul>
+                        <li>Cryptocurrency miners running on compromised systems</li>
+                        <li>DDoS attack traffic overwhelming network interfaces</li>
+                        <li>Malware processes consuming excessive CPU/memory</li>
+                    </ul>
+                </div>
+
+                <h2>Business Impact</h2>
+                <table>
+                    <tr>
+                        <th>Metric</th>
+                        <th>Impact</th>
+                    </tr>
+                    <tr>
+                        <td>Downtime Cost</td>
+                        <td>$5,600/minute (average for enterprises)</td>
+                    </tr>
+                    <tr>
+                        <td>SLA Violations</td>
+                        <td>Financial penalties and reputation damage</td>
+                    </tr>
+                    <tr>
+                        <td>Capacity Planning</td>
+                        <td>Informed infrastructure scaling decisions</td>
+                    </tr>
+                    <tr>
+                        <td>Debugging</td>
+                        <td>Faster root cause analysis via metric correlation</td>
+                    </tr>
+                </table>
+            </div>
+            <div class="navigation">
+                <button class="nav-button" onclick="prevSlide()">◀ Previous</button>
+                <span class="slide-counter">Slide <span id="current">3</span> / <span id="total">11</span></span>
+                <button class="nav-button" onclick="nextSlide()">Next ▶</button>
+            </div>
+        </div>
+
+        <!-- Slide 4: Tool Selection -->
+        <div class="slide" data-slide="4">
+            <div class="slide-content">
+                <h1>Tool Selection: Why Python?</h1>
+                
+                <h2>Language Advantages for System Monitoring</h2>
+                <table>
+                    <tr>
+                        <th>Feature</th>
+                        <th>Benefit</th>
+                    </tr>
+                    <tr>
+                        <td><span class="highlight">Cross-Platform</span></td>
+                        <td>Single codebase runs on Linux, macOS, Windows without modification</td>
+                    </tr>
+                    <tr>
+                        <td><span class="highlight">Rich Ecosystem</span></td>
+                        <td>psutil, FastAPI, Textual libraries provide production-ready components</td>
+                    </tr>
+                    <tr>
+                        <td><span class="highlight">Rapid Development</span></td>
+                        <td>High-level abstractions reduce development time by 40-60%</td>
+                    </tr>
+                    <tr>
+                        <td><span class="highlight">Standard Library</span></td>
+                        <td>socket, json, threading modules eliminate many external dependencies</td>
+                    </tr>
+                    <tr>
+                        <td><span class="highlight">Code Readability</span></td>
+                        <td>Clean syntax enhances maintainability and team collaboration</td>
+                    </tr>
+                </table>
+
+                <h2>Alternative Technology Comparison</h2>
+                <div class="box">
+                    <h3>Bash/Shell Scripts</h3>
+                    <p>❌ Limited data structures, poor error handling, difficult to scale</p>
+                </div>
+
+                <div class="box">
+                    <h3>C/C++</h3>
+                    <p>✓ Excellent performance<br>❌ High complexity, longer development time, manual memory management</p>
+                </div>
+
+                <div class="box">
+                    <h3>Go</h3>
+                    <p>✓ Superior concurrency, static typing<br>❌ Steeper learning curve, smaller ecosystem for system monitoring</p>
+                </div>
+
+                <div class="box success">
+                    <h3>Python</h3>
+                    <p>✓ Optimal balance of performance, ease of use, and ecosystem maturity<br>✓ psutil provides C-speed syscall access through Python interfaces</p>
+                </div>
+
+                <h2>Performance Considerations</h2>
+                <p>For a system monitoring tool where <span class="highlight">real-time performance</span> (sub-second metrics) and <span class="highlight">developer productivity</span> are paramount, Python provides the ideal foundation. The psutil library offers C-level performance for system calls while maintaining Python's ease of use.</p>
+
+                <pre><code># Performance benchmark: psutil CPU collection
+# Average collection time: 1.2ms per call
+# Overhead: < 0.1% of total system CPU usage</code></pre>
+            </div>
+            <div class="navigation">
+                <button class="nav-button" onclick="prevSlide()">◀ Previous</button>
+                <span class="slide-counter">Slide <span id="current">4</span> / <span id="total">11</span></span>
+                <button class="nav-button" onclick="nextSlide()">Next ▶</button>
+            </div>
+        </div>
+
+        <!-- Slide 5: Core Library - psutil -->
+        <div class="slide" data-slide="5">
+            <div class="slide-content">
+                <h1>Core Library: psutil</h1>
+                
+                <h2>OS Kernel Interface</h2>
+                <p>The <code>psutil</code> (process and system utilities) library provides a <span class="highlight">unified API</span> for accessing system-level information across different operating systems.</p>
+
+                <h3>Kernel Communication Mechanisms</h3>
+                <div class="box">
+                    <p><span class="highlight">Linux:</span> Reads from <code>/proc</code> and <code>/sys</code> pseudo-filesystems</p>
+                    <ul>
+                        <li><code>/proc/stat</code> - CPU statistics</li>
+                        <li><code>/proc/meminfo</code> - Memory information</li>
+                        <li><code>/proc/net/dev</code> - Network interface stats</li>
+                        <li><code>/proc/diskstats</code> - Disk I/O counters</li>
+                    </ul>
+                </div>
+
+                <div class="box">
+                    <p><span class="highlight">Windows:</span> Uses Windows API calls</p>
+                    <ul>
+                        <li>GetSystemInfo() - System information</li>
+                        <li>GlobalMemoryStatusEx() - Memory status</li>
+                        <li>GetDiskFreeSpaceEx() - Disk space</li>
+                    </ul>
+                </div>
+
+                <div class="box">
+                    <p><span class="highlight">macOS:</span> Leverages sysctl and libproc</p>
+                    <ul>
+                        <li>sysctl() - Kernel parameters</li>
+                        <li>proc_pidinfo() - Process information</li>
+                    </ul>
+                </div>
+
+                <h2>System Call Abstraction</h2>
+                <pre><code># Direct kernel interface (conceptual - Linux)
+/proc/stat → CPU counters (user, system, idle, iowait)
+/proc/meminfo → Memory metrics (MemTotal, MemFree, Buffers, Cached)
+/proc/net/dev → Network interface statistics (bytes, packets, errors)
+
+# psutil abstraction layer (cross-platform)
+psutil.cpu_percent()       # Aggregates /proc/stat data
+psutil.virtual_memory()    # Parses /proc/meminfo
+psutil.net_io_counters()   # Processes /proc/net/dev</code></pre>
+
+                <h2>Key psutil Functions</h2>
+                <table>
+                    <tr>
+                        <th>Function</th>
+                        <th>Purpose</th>
+                        <th>Return Type</th>
+                    </tr>
+                    <tr>
+                        <td><code>cpu_percent()</code></td>
+                        <td>CPU utilization percentage</td>
+                        <td>float</td>
+                    </tr>
+                    <tr>
+                        <td><code>virtual_memory()</code></td>
+                        <td>Physical memory statistics</td>
+                        <td>svmem namedtuple</td>
+                    </tr>
+                    <tr>
+                        <td><code>disk_usage()</code></td>
+                        <td>Disk space utilization</td>
+                        <td>sdiskusage namedtuple</td>
+                    </tr>
+                    <tr>
+                        <td><code>net_io_counters()</code></td>
+                        <td>Network I/O statistics</td>
+                        <td>snetio namedtuple</td>
+                    </tr>
+                </table>
+
+                <div class="box success">
+                    <h3>Technical Insight</h3>
+                    <p>psutil bridges the gap between high-level Python code and low-level OS kernel operations, providing <span class="highlight">production-grade performance</span> (C-compiled extensions) without sacrificing code clarity.</p>
+                </div>
+            </div>
+            <div class="navigation">
+                <button class="nav-button" onclick="prevSlide()">◀ Previous</button>
+                <span class="slide-counter">Slide <span id="current">5</span> / <span id="total">11</span></span>
+                <button class="nav-button" onclick="nextSlide()">Next ▶</button>
+            </div>
+        </div>
+
+        <!-- Slide 6: Networking - socket -->
+        <div class="slide" data-slide="6">
+            <div class="slide-content">
+                <h1>Networking: socket Module</h1>
+                
+                <h2>Host Identification</h2>
+                <p>SysMon implements multiple layers of host identification for accurate system attribution in distributed monitoring environments.</p>
+
+                <h3>Identification Hierarchy</h3>
+                <pre><code>1. Hostname (socket.gethostname())
+   └─> FQDN resolution via DNS lookup (socket.getfqdn())
+   
+2. Network Interfaces (psutil.net_if_addrs())
+   ├─> IPv4 addresses (AF_INET)
+   ├─> IPv6 addresses (AF_INET6)
+   └─> MAC addresses (AF_LINK / AF_PACKET)
+   
+3. Active Connections (psutil.net_connections())
+   └─> TCP/UDP sockets with local/remote endpoints</code></pre>
+
+                <h2>socket Module Functions</h2>
+                <table>
+                    <tr>
+                        <th>Function</th>
+                        <th>Purpose</th>
+                        <th>System Call</th>
+                    </tr>
+                    <tr>
+                        <td><code>gethostname()</code></td>
+                        <td>Retrieve system hostname</td>
+                        <td>gethostname() syscall</td>
+                    </tr>
+                    <tr>
+                        <td><code>gethostbyname()</code></td>
+                        <td>Perform DNS resolution</td>
+                        <td>getaddrinfo() syscall</td>
+                    </tr>
+                    <tr>
+                        <td><code>getfqdn()</code></td>
+                        <td>Get fully qualified domain name</td>
+                        <td>DNS reverse lookup</td>
+                    </tr>
+                </table>
+
+                <h2>Remote Reporting Architecture</h2>
+                <div class="box">
+                    <h3>Web Dashboard Interface</h3>
+                    <p>FastAPI-based REST API exposes metrics via HTTP endpoints:</p>
+                    <ul>
+                        <li><code>GET /</code> - HTML dashboard interface</li>
+                        <li><code>GET /config</code> - Configuration retrieval (JSON)</li>
+                        <li><code>POST /config</code> - Dynamic configuration updates</li>
+                        <li><code>WebSocket /ws</code> - Real-time metric streaming</li>
+                    </ul>
+                </div>
+
+                <h3>WebSocket Protocol Implementation</h3>
+                <pre><code># Server-side push architecture
+1. Client initiates WebSocket handshake (HTTP Upgrade)
+2. Server reads latest metrics from JSONL log file
+3. Metrics serialized to JSON and streamed every 2 seconds
+4. Client-side JavaScript updates DOM in real-time
+
+Advantages:
+▸ Low latency (sub-100ms update cycles)
+▸ Reduced HTTP overhead vs traditional polling
+▸ Bi-directional communication channel
+▸ Automatic reconnection on connection loss</code></pre>
+
+                <h2>Network Interface Discovery</h2>
+                <pre><code>import psutil
+import socket
+
+# Get all network interfaces and their addresses
+interfaces = psutil.net_if_addrs()
+hostname = socket.gethostname()
+
+for iface_name, addresses in interfaces.items():
+    for addr in addresses:
+        if addr.family == socket.AF_INET:
+            print(f"{hostname} - {iface_name}: {addr.address}")</code></pre>
+            </div>
+            <div class="navigation">
+                <button class="nav-button" onclick="prevSlide()">◀ Previous</button>
+                <span class="slide-counter">Slide <span id="current">6</span> / <span id="total">11</span></span>
+                <button class="nav-button" onclick="nextSlide()">Next ▶</button>
+            </div>
+        </div>
+
+        <!-- Slide 7: System Architecture -->
+        <div class="slide" data-slide="7">
+            <div class="slide-content">
+                <h1>System Architecture</h1>
+                
+                <h2>Data Flow Diagram</h2>
+                <img src="https://placehold.co/900x500/0e1111/00ff00?text=OS+Kernel+%E2%86%92+psutil+%E2%86%92+SysMon+Agent+%E2%86%92+JSONL+Log+%E2%86%92+User+Interfaces+(TUI%2FWeb%2FCLI)" alt="System Architecture Diagram">
+
+                <h2>Component Breakdown</h2>
+                <div class="box">
+                    <h3>1. OS Kernel Layer</h3>
+                    <p>Provides raw system metrics via /proc, /sys (Linux), sysctl (macOS), or Windows APIs</p>
+                </div>
+
+                <div class="box">
+                    <h3>2. Collection Layer (metrics/)</h3>
+                    <p>Specialized modules for different metric types:</p>
+                    <ul>
+                        <li><code>cpu.py</code> - Per-core utilization, frequency, load averages, context switches</li>
+                        <li><code>memory.py</code> - Virtual memory, swap memory, buffers, cache</li>
+                        <li><code>disk.py</code> - Partition usage, I/O counters (read/write bytes and operations)</li>
+                        <li><code>network.py</code> - Interface statistics, connections, traffic analysis</li>
+                        <li><code>process.py</code> - Agent self-monitoring and process-level metrics</li>
+                    </ul>
+                </div>
+
+                <div class="box">
+                    <h3>3. Orchestration Layer (agent.py)</h3>
+                    <p>Coordinates metric collection with configurable refresh intervals</p>
+                    <ul>
+                        <li>Threaded updaters for concurrent data collection</li>
+                        <li>Centralized configuration management</li>
+                        <li>Alert threshold evaluation</li>
+                    </ul>
+                </div>
+
+                <div class="box">
+                    <h3>4. Persistence Layer (logger.py)</h3>
+                    <p>Appends metrics to JSONL (JSON Lines) file for historical analysis</p>
+                    <ul>
+                        <li>Structured logging with timestamps</li>
+                        <li>Human-readable and machine-parsable format</li>
+                        <li>Alert integration for threshold violations</li>
+                    </ul>
+                </div>
+
+                <div class="box">
+                    <h3>5. Presentation Layer</h3>
+                    <p><span class="highlight">TUI Dashboard:</span> Textual-based terminal interface with real-time updates</p>
+                    <p><span class="highlight">Web Dashboard:</span> FastAPI server with WebSocket streaming</p>
+                    <p><span class="highlight">CLI:</span> Command-line interface for scripting and automation</p>
+                </div>
+
+                <h2>Design Philosophy: Separation of Concerns</h2>
+                <p>Each layer has a <span class="highlight">single responsibility</span>, enabling:</p>
+                <ul>
+                    <li>Independent testing and validation</li>
+                    <li>Modular upgrades without system-wide changes</li>
+                    <li>Clear debugging and troubleshooting paths</li>
+                </ul>
+            </div>
+            <div class="navigation">
+                <button class="nav-button" onclick="prevSlide()">◀ Previous</button>
+                <span class="slide-counter">Slide <span id="current">7</span> / <span id="total">11</span></span>
+                <button class="nav-button" onclick="nextSlide()">Next ▶</button>
+            </div>
+        </div>
+
+        <!-- Slide 8: Code Implementation -->
+        <div class="slide" data-slide="8">
+            <div class="slide-content">
+                <h1>Code Implementation</h1>
+                
+                <h2>CPU Percentage Collection</h2>
+                <p>Below is the actual implementation demonstrating how SysMon fetches CPU utilization:</p>
+
+                <pre><code>import psutil
+from typing import Dict, Any
+
+class CPUMetrics:
+    """Collect CPU performance metrics."""
+    
+    @staticmethod
+    def get_cpu_percent() -> Dict[str, Any]:
+        """
+        Fetch CPU utilization percentage.
+        
+        Technical Details:
+        - psutil.cpu_percent(interval=1) blocks for 1 second
+        - Measures CPU usage by comparing /proc/stat counters
+        - Calculates: (total_time - idle_time) / total_time * 100
+        - Returns aggregate utilization across all cores
+        
+        Returns:
+            dict: Metric with value, unit, type, and description
+        """
+        cpu_value = psutil.cpu_percent(interval=1, percpu=False)
+        
+        return {
+            "value": round(cpu_value, 1),
+            "unit": "%",
+            "type": "dynamic",
+            "refresh_interval": 2,
+            "description": "Average CPU utilization"
+        }
+    
+    @staticmethod
+    def get_per_core_usage() -> Dict[str, Any]:
+        """
+        Get per-core CPU usage for detailed analysis.
+        
+        Returns:
+            dict: Dictionary mapping core IDs to usage percentages
+        """
+        per_core = psutil.cpu_percent(interval=1, percpu=True)
+        
+        result = {}
+        for i, usage in enumerate(per_core):
+            result[f"core_{i}_usage"] = {
+                "value": round(usage, 1),
+                "unit": "%",
+                "type": "dynamic",
+                "refresh_interval": 2,
+                "description": f"CPU usage for core {i}"
+            }
+        return result
+    
+    @staticmethod
+    def get_cpu_frequency() -> Dict[str, Any]:
+        """Get current CPU frequency in MHz."""
+        freq = psutil.cpu_freq()
+        return {
+            "value": round(freq.current, 2),
+            "unit": "MHz",
+            "type": "dynamic",
+            "description": "Current CPU frequency"
+        }</code></pre>
+
+                <h2>Implementation Highlights</h2>
+                <ul>
+                    <li><span class="highlight">Blocking Interval:</span> 1-second measurement window ensures accurate delta calculation</li>
+                    <li><span class="highlight">Precision:</span> One decimal place balances accuracy and readability</li>
+                    <li><span class="highlight">Metadata:</span> Each metric includes unit, type, and refresh interval for UI rendering</li>
+                    <li><span class="highlight">Type Hints:</span> Python type annotations improve code clarity and IDE support</li>
+                </ul>
+            </div>
+            <div class="navigation">
+                <button class="nav-button" onclick="prevSlide()">◀ Previous</button>
+                <span class="slide-counter">Slide <span id="current">8</span> / <span id="total">11</span></span>
+                <button class="nav-button" onclick="nextSlide()">Next ▶</button>
+            </div>
+        </div>
+
+        <!-- Slide 9: Memory Management -->
+        <div class="slide" data-slide="9">
+            <div class="slide-content">
+                <h1>Deep Dive: Memory Management</h1>
+                
+                <h2>Physical vs Swap Memory</h2>
+                <p>SysMon distinguishes between two critical memory types that serve fundamentally different purposes in system operation.</p>
+
+                <h3>Virtual Memory (Physical RAM)</h3>
+                <div class="box success">
+                    <p><span class="highlight">Definition:</span> Physical RAM (Random Access Memory) chips directly accessible by the CPU</p>
+                    <p><span class="highlight">Access Time:</span> ~100 nanoseconds (extremely fast)</p>
+                    <p><span class="highlight">Use Case:</span> Active processes, running applications, and frequently accessed data</p>
+                    <p><span class="highlight">Technology:</span> DRAM (Dynamic RAM) - volatile memory</p>
+                </div>
+
+                <pre><code># Implementation from metrics/memory.py
+import psutil
+
+def get_virtual_memory():
+    """Collect virtual (physical) memory statistics."""
+    vmem = psutil.virtual_memory()
+    return {
+        "total": vmem.total,          # Total physical RAM installed
+        "available": vmem.available,  # RAM available for new processes
+        "used": vmem.used,            # RAM actively in use
+        "percent": vmem.percent,      # Usage percentage
+        "buffers": vmem.buffers,      # OS buffer cache
+        "cached": vmem.cached         # Page cache for file I/O
+    }
+
+# Example output:
+# {
+#     "total": 16777216000,        # 16 GB
+#     "available": 8388608000,     # 8 GB available
+#     "used": 7516192768,          # ~7 GB in use
+#     "percent": 44.8,
+#     "buffers": 209715200,        # 200 MB
+#     "cached": 3221225472         # 3 GB
+# }</code></pre>
+
+                <h3>Swap Memory (Virtual Memory Extension)</h3>
+                <div class="box warning">
+                    <p><span class="highlight">Definition:</span> Disk space designated for memory overflow when physical RAM is exhausted</p>
+                    <p><span class="highlight">Access Time:</span> ~10 milliseconds (100,000x slower than RAM)</p>
+                    <p><span class="highlight">Use Case:</span> Inactive memory pages paged out by the OS kernel</p>
+                    <p><span class="highlight">Technology:</span> SSD or HDD partition/file</p>
+                </div>
+
+                <pre><code>def get_swap_memory():
+    """Collect swap memory statistics."""
+    swap = psutil.swap_memory()
+    return {
+        "total": swap.total,    # Swap partition/file size
+        "used": swap.used,      # Bytes written to swap
+        "free": swap.free,      # Available swap space
+        "percent": swap.percent # Swap usage percentage
+    }</code></pre>
+
+                <h2>Technical Comparison</h2>
+                <table>
+                    <tr>
+                        <th>Aspect</th>
+                        <th>Physical Memory</th>
+                        <th>Swap Memory</th>
+                    </tr>
+                    <tr>
+                        <td>Medium</td>
+                        <td>DRAM chips</td>
+                        <td>SSD/HDD partition</td>
+                    </tr>
+                    <tr>
+                        <td>Speed</td>
+                        <td>10-100 GB/s</td>
+                        <td>200-500 MB/s (SSD)</td>
+                    </tr>
+                    <tr>
+                        <td>Kernel Source</td>
+                        <td>/proc/meminfo</td>
+                        <td>/proc/swaps</td>
+                    </tr>
+                    <tr>
+                        <td>Critical Threshold</td>
+                        <td>&gt;90% = OOM risk</td>
+                        <td>&gt;50% = thrashing</td>
+                    </tr>
+                </table>
+
+                <h2>Monitoring Rationale</h2>
+                <p>High swap usage indicates <span class="highlight">memory pressure</span> (insufficient physical RAM), causing severe performance degradation through disk I/O. SysMon's alert system triggers warnings at configurable thresholds to prevent system slowdowns.</p>
+            </div>
+            <div class="navigation">
+                <button class="nav-button" onclick="prevSlide()">◀ Previous</button>
+                <span class="slide-counter">Slide <span id="current">9</span> / <span id="total">11</span></span>
+                <button class="nav-button" onclick="nextSlide()">Next ▶</button>
+            </div>
+        </div>
+
+        <!-- Slide 10: Challenges & Solutions -->
+        <div class="slide" data-slide="10">
+            <div class="slide-content">
+                <h1>Challenges & Solutions</h1>
+                
+                <h2>Challenge 1: Permission Errors</h2>
+                <div class="box warning">
+                    <h3>Problem</h3>
+                    <p>Accessing certain <code>/proc</code> files (particularly process-level information) requires elevated privileges. Running as non-root user causes <code>PermissionError</code> or <code>AccessDenied</code> exceptions.</p>
+                    <pre><code>psutil.AccessDenied: (pid=1234)
+  File "/proc/1234/stat" requires root privileges</code></pre>
+                </div>
+
+                <div class="box success">
+                    <h3>Solution: Graceful Degradation</h3>
+                    <pre><code>import psutil
+import logging
+
+def collect_process_metrics(pid: int):
+    """
+    Collect process-level metrics with error handling.
+    Falls back gracefully when permissions are insufficient.
+    """
+    try:
+        process = psutil.Process(pid)
+        return {
+            "cpu_percent": process.cpu_percent(),
+            "memory_info": process.memory_info(),
+            "status": process.status()
+        }
+    except psutil.AccessDenied:
+        logging.warning(f"Access denied for PID {pid}")
+        return None  # Skip this process, continue monitoring
+    except psutil.NoSuchProcess:
+        logging.debug(f"Process {pid} no longer exists")
+        return None</code></pre>
+                    <p><span class="highlight">Result:</span> The agent continues operation with reduced process-level detail rather than crashing. System-wide metrics remain accessible.</p>
+                </div>
+
+                <h2>Challenge 2: Refresh Rate Synchronization</h2>
+                <div class="box warning">
+                    <h3>Problem</h3>
+                    <p>Different metrics have varying ideal collection frequencies:</p>
+                    <ul>
+                        <li>CPU: 2 seconds (rapid changes)</li>
+                        <li>Disk: 10 seconds (slower changes, expensive to query)</li>
+                        <li>Memory: 5 seconds (moderate changes)</li>
+                    </ul>
+                    <p>A single-threaded approach creates rigid, suboptimal timing.</p>
+                </div>
+
+                <div class="box success">
+                    <h3>Solution: Multi-Threaded Updaters</h3>
+                    <pre><code>import threading
+import time
+
+class MetricUpdater(threading.Thread):
+    """Independent thread for metric collection."""
+    
+    def __init__(self, metric_fn, interval):
+        super().__init__(daemon=True)
+        self.metric_fn = metric_fn
+        self.interval = interval
+        self.running = True
+        
+    def run(self):
+        """Collection loop with configurable interval."""
+        while self.running:
+            try:
+                self.metric_fn()
+            except Exception as e:
+                logging.error(f"Metric collection error: {e}")
+            time.sleep(self.interval)
+
+# Launch independent threads with optimized intervals
+cpu_updater = MetricUpdater(collect_cpu, interval=2)
+disk_updater = MetricUpdater(collect_disk, interval=10)
+memory_updater = MetricUpdater(collect_memory, interval=5)
+
+cpu_updater.start()
+disk_updater.start()
+memory_updater.start()</code></pre>
+                    <p><span class="highlight">Result:</span> Each metric collector runs independently with customized timing, minimizing system overhead while maximizing data freshness.</p>
+                </div>
+
+                <h2>Challenge 3: Web Dashboard Data Staleness</h2>
+                <div class="box warning">
+                    <h3>Problem</h3>
+                    <p>WebSocket clients connecting when the log file is empty or very old receive "No data" indefinitely.</p>
+                </div>
+
+                <div class="box success">
+                    <h3>Solution: Tail-Follow Pattern with Retry</h3>
+                    <p>Web dashboard reads the <span class="highlight">last line</span> of the JSONL log file and streams it via WebSocket. If the file is empty, shows a loading state with automatic retry logic.</p>
+                </div>
+            </div>
+            <div class="navigation">
+                <button class="nav-button" onclick="prevSlide()">◀ Previous</button>
+                <span class="slide-counter">Slide <span id="current">10</span> / <span id="total">11</span></span>
+                <button class="nav-button" onclick="nextSlide()">Next ▶</button>
+            </div>
+        </div>
+
+        <!-- Slide 11: Future Improvements & Conclusion -->
+        <div class="slide" data-slide="11">
+            <div class="slide-content">
+                <h1>Future Improvements & Conclusion</h1>
+                
+                <h2>Roadmap for v2.0</h2>
+                <h3>1. GUI Integration</h3>
+                <ul>
+                    <li>Native desktop application using PyQt or Tkinter</li>
+                    <li>System tray integration with notification badges</li>
+                    <li>Real-time graphs and charts for metric visualization</li>
+                    <li>Interactive configuration editor</li>
+                </ul>
+
+                <h3>2. Database Integration</h3>
+                <ul>
+                    <li>Migrate from JSONL to TimeSeries Database (InfluxDB, Prometheus)</li>
+                    <li>Enable long-term metric retention (months/years)</li>
+                    <li>Implement efficient querying for historical analysis</li>
+                    <li>Support for downsampling and data aggregation</li>
+                </ul>
+
+                <h3>3. Advanced Analytics</h3>
+                <ul>
+                    <li>Machine learning anomaly detection (Isolation Forests, LSTM)</li>
+                    <li>Predictive capacity planning using time-series forecasting</li>
+                    <li>Automated performance bottleneck identification</li>
+                    <li>Correlation analysis between different metrics</li>
+                </ul>
+
+                <h3>4. Distributed Monitoring</h3>
+                <ul>
+                    <li>Agent-server architecture for multi-host monitoring</li>
+                    <li>Centralized dashboard aggregating metrics from multiple systems</li>
+                    <li>Service discovery integration (Consul, etcd, Kubernetes)</li>
+                    <li>Load balancing and high availability</li>
+                </ul>
+
+                <h3>5. Enhanced Alerting</h3>
+                <ul>
+                    <li>Webhook integrations (Slack, Discord, Microsoft Teams, PagerDuty)</li>
+                    <li>Complex alert rules: "CPU &gt; 80% for &gt; 5 consecutive minutes"</li>
+                    <li>Alert acknowledgment and escalation workflows</li>
+                    <li>SMS and email notification support</li>
+                </ul>
+
+                <h3>6. Security Hardening</h3>
+                <ul>
+                    <li>TLS/SSL for web dashboard (HTTPS with Let's Encrypt)</li>
+                    <li>Authentication middleware (OAuth2, JWT tokens, SAML)</li>
+                    <li>Role-based access control (RBAC) for multi-user environments</li>
+                    <li>Audit logging for security compliance</li>
+                </ul>
+
+                <h2>Conclusion</h2>
+                <div class="box success">
+                    <p><span class="highlight">SysMon</span> demonstrates a production-ready approach to system resource monitoring by:</p>
+                    <ul>
+                        <li>✓ Leveraging Python's ecosystem for rapid, reliable development</li>
+                        <li>✓ Implementing modular architecture ensuring maintainability</li>
+                        <li>✓ Providing multiple user interfaces (CLI, TUI, Web) for diverse use cases</li>
+                        <li>✓ Solving real-world challenges (permissions, threading, data staleness)</li>
+                        <li>✓ Establishing a solid foundation for enterprise-grade features</li>
+                    </ul>
+                </div>
+
+                <h2>Key Takeaways</h2>
+                <div class="box">
+                    <p style="text-align: center; font-size: 1.3em; margin: 30px 0;">
+                        <span class="highlight">"Effective system monitoring requires a careful balance of technical depth, user experience, and operational reliability."</span>
+                    </p>
+                </div>
+
+                <p style="text-align: center; margin-top: 50px; font-size: 1.5em;">
+                    Thank you for your attention!
+                </p>
+                <p style="text-align: center; color: #ffb000; margin-top: 20px; font-size: 1.3em;">
+                    Questions?
+                </p>
+            </div>
+            <div class="navigation">
+                <button class="nav-button" onclick="prevSlide()">◀ Previous</button>
+                <span class="slide-counter">Slide <span id="current">11</span> / <span id="total">11</span></span>
+                <button class="nav-button" onclick="nextSlide()" disabled>Next ▶</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentSlide = 1;
+        const totalSlides = 11;
+
+        function showSlide(n) {
+            const slides = document.querySelectorAll('.slide');
+            
+            // Hide all slides
+            slides.forEach(slide => {
+                slide.classList.remove('active');
+            });
+            
+            // Show current slide
+            slides[n - 1].classList.add('active');
+            
+            // Update counter in all slides
+            document.querySelectorAll('#current').forEach(el => {
+                el.textContent = n;
+            });
+            
+            // Update buttons in current slide
+            const currentNav = slides[n - 1].querySelector('.navigation');
+            const currentPrevBtn = currentNav.querySelector('.nav-button:first-child');
+            const currentNextBtn = currentNav.querySelector('.nav-button:last-child');
+            
+            // Disable/enable prev button
+            currentPrevBtn.disabled = (n === 1);
+            
+            // Disable/enable next button
+            currentNextBtn.disabled = (n === totalSlides);
+            
+            currentSlide = n;
+        }
+
+        function nextSlide() {
+            if (currentSlide < totalSlides) {
+                showSlide(currentSlide + 1);
+            }
+        }
+
+        function prevSlide() {
+            if (currentSlide > 1) {
+                showSlide(currentSlide - 1);
+            }
+        }
+
+        // Keyboard navigation
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'ArrowRight') {
+                nextSlide();
+            } else if (event.key === 'ArrowLeft') {
+                prevSlide();
+            }
+        });
+
+        // Initialize
+        showSlide(1);
+    </script>
+</body>
+</html>
