@@ -66,6 +66,9 @@ LOG_UPDATE_INTERVAL: int = 500      # Update log display every 0.5 seconds
 MOCK_START_DELAY: float = 2.0  # Seconds to simulate service start
 MOCK_STOP_DELAY: float = 1.0   # Seconds to simulate service stop
 
+# Process management settings
+PROCESS_STOP_TIMEOUT: int = 5  # Seconds to wait for graceful process termination
+
 # ============================================================================
 # STYLING
 # ============================================================================

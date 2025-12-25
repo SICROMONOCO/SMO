@@ -186,7 +186,7 @@ class ServiceManager:
                 time.sleep(config.MOCK_START_DELAY)
                 with self._lock:
                     service.status = ServiceStatus.RUNNING
-                    service.pid = os.getpid() + hash(service_name) % 10000
+                    service.pid = os.getpid() + abs(hash(service_name)) % 10000
                     self._log(f"Service '{service_name}' started (mock PID: {service.pid})")
             else:
                 # Real mode: execute subprocess
@@ -195,7 +195,8 @@ class ServiceManager:
                         service.start_command,
                         stdout=subprocess.PIPE,
                         stderr=subprocess.PIPE,
-                        text=True
+                        text=True,
+                        shell=False  # Explicit for security
                     )
                     with self._lock:
                         service.process = process
@@ -272,7 +273,7 @@ class ServiceManager:
                     if service.process:
                         service.process.terminate()
                         try:
-                            service.process.wait(timeout=5)
+                            service.process.wait(timeout=config.PROCESS_STOP_TIMEOUT)
                         except subprocess.TimeoutExpired:
                             service.process.kill()
                             service.process.wait()
@@ -366,6 +367,6 @@ class ServiceManager:
                 if not self.mock_mode and service.process:
                     try:
                         service.process.terminate()
-                        service.process.wait(timeout=5)
+                        service.process.wait(timeout=config.PROCESS_STOP_TIMEOUT)
                     except Exception:
                         pass
