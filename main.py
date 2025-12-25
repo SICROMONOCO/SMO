@@ -237,10 +237,15 @@ class ServiceManagerGUI(QMainWindow):
         start_btn = QPushButton("Start")
         start_btn.setObjectName("start")
         start_btn.setProperty("class", "start-button")
-        start_btn.setStyleSheet(
-            "background-color: #28a745; min-width: 70px;"
-            "QPushButton:hover { background-color: #2db84d; }"
-        )
+        start_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #28a745;
+                min-width: 70px;
+            }
+            QPushButton:hover {
+                background-color: #2db84d;
+            }
+        """)
         start_btn.clicked.connect(lambda: self._on_start_service(service_name))
         layout.addWidget(start_btn)
         
@@ -248,10 +253,15 @@ class ServiceManagerGUI(QMainWindow):
         stop_btn = QPushButton("Stop")
         stop_btn.setObjectName("stop")
         stop_btn.setProperty("class", "stop-button")
-        stop_btn.setStyleSheet(
-            "background-color: #dc3545; min-width: 70px;"
-            "QPushButton:hover { background-color: #e04555; }"
-        )
+        stop_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #dc3545;
+                min-width: 70px;
+            }
+            QPushButton:hover {
+                background-color: #e04555;
+            }
+        """)
         stop_btn.clicked.connect(lambda: self._on_stop_service(service_name))
         layout.addWidget(stop_btn)
         
@@ -259,10 +269,15 @@ class ServiceManagerGUI(QMainWindow):
         restart_btn = QPushButton("Restart")
         restart_btn.setObjectName("restart")
         restart_btn.setProperty("class", "restart-button")
-        restart_btn.setStyleSheet(
-            "background-color: #ffc107; min-width: 70px;"
-            "QPushButton:hover { background-color: #ffca2c; }"
-        )
+        restart_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #ffc107;
+                min-width: 70px;
+            }
+            QPushButton:hover {
+                background-color: #ffca2c;
+            }
+        """)
         restart_btn.clicked.connect(lambda: self._on_restart_service(service_name))
         layout.addWidget(restart_btn)
         
@@ -303,19 +318,31 @@ class ServiceManagerGUI(QMainWindow):
         
         # Start All button
         start_all_btn = QPushButton("Start All Services")
-        start_all_btn.setStyleSheet(
-            "background-color: #28a745; padding: 10px 20px; font-size: 11pt;"
-            "QPushButton:hover { background-color: #2db84d; }"
-        )
+        start_all_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #28a745;
+                padding: 10px 20px;
+                font-size: 11pt;
+            }
+            QPushButton:hover {
+                background-color: #2db84d;
+            }
+        """)
         start_all_btn.clicked.connect(self._on_start_all)
         layout.addWidget(start_all_btn)
         
         # Stop All button
         stop_all_btn = QPushButton("Stop All Services")
-        stop_all_btn.setStyleSheet(
-            "background-color: #dc3545; padding: 10px 20px; font-size: 11pt;"
-            "QPushButton:hover { background-color: #e04555; }"
-        )
+        stop_all_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #dc3545;
+                padding: 10px 20px;
+                font-size: 11pt;
+            }
+            QPushButton:hover {
+                background-color: #e04555;
+            }
+        """)
         stop_all_btn.clicked.connect(self._on_stop_all)
         layout.addWidget(stop_all_btn)
         
@@ -323,10 +350,16 @@ class ServiceManagerGUI(QMainWindow):
         
         # Quit button
         quit_btn = QPushButton("Quit")
-        quit_btn.setStyleSheet(
-            "background-color: #6c757d; padding: 10px 20px; font-size: 11pt;"
-            "QPushButton:hover { background-color: #5a6268; }"
-        )
+        quit_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #6c757d;
+                padding: 10px 20px;
+                font-size: 11pt;
+            }
+            QPushButton:hover {
+                background-color: #5a6268;
+            }
+        """)
         quit_btn.clicked.connect(self._on_quit)
         layout.addWidget(quit_btn)
         
