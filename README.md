@@ -88,6 +88,13 @@ pip install -r requirements.txt
 
 The easiest way to use SMO is with the GUI Control Panel, which provides a web-based interface to start/stop services, view metrics, and manage configuration:
 
+**Quick Launch (auto-opens browser):**
+```bash
+source venv/bin/activate
+python3 launch_gui.py
+```
+
+**Or start manually:**
 ```bash
 source venv/bin/activate
 python3 gui_dashboard.py
@@ -140,6 +147,31 @@ Then open [http://localhost:5000](http://localhost:5000) in your browser.
 ---
 
 ## 📖 Usage Guide
+
+### GUI Control Panel (XAMPP-style Interface)
+
+The GUI Control Panel is the easiest way to manage SMO. It provides a centralized web interface to control all services.
+
+**Starting the Control Panel:**
+```bash
+python3 launch_gui.py  # Auto-opens in browser
+# OR
+python3 gui_dashboard.py  # Manual browser access at http://localhost:8000
+```
+
+**Features:**
+- **Service Management**: Start/Stop the Agent and Web Dashboard with visual status indicators
+- **Real-time Metrics**: Live CPU, Memory, Disk, and Network I/O statistics
+- **Log Viewer**: View recent log entries with automatic formatting
+- **Configuration Editor**: Edit YAML config with syntax validation
+- **One-Click Actions**: Start All / Stop All buttons for quick control
+- **Responsive Design**: Works on desktop and mobile browsers
+
+**Interface Sections:**
+1. **Services Control Panel** - Manage SMO Agent and Main Dashboard
+2. **System Metrics** - Real-time system resource monitoring
+3. **Logs Tab** - View and filter application logs
+4. **Configuration Tab** - Edit settings with live reload
 
 ### Agent Commands
 
