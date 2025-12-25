@@ -16,9 +16,10 @@ SMO is a comprehensive system monitoring tool designed for DevOps engineers, sys
 **Key Highlights:**
 - ⚡ Zero external dependencies (database-free architecture)
 - 📊 Real-time metrics collection and visualization
-- 🎯 Dual interface options (Terminal TUI + Web Dashboard)
+- 🎯 Multiple interface options (GUI Control Panel, Terminal TUI, Web Dashboard)
 - 🔧 Highly configurable alerting system
 - 📁 Simple file-based logging (JSONL format)
+- 🖥️ **NEW: XAMPP-style GUI Control Panel for easy service management**
 
 ---
 
@@ -26,6 +27,7 @@ SMO is a comprehensive system monitoring tool designed for DevOps engineers, sys
 
 | Feature | Description |
 |---------|-------------|
+| **GUI Control Panel** | XAMPP-like web interface for managing all services with one click |
 | **Real-time Metrics** | CPU, Memory, Disk, Network, and Process monitoring with live updates |
 | **Interactive TUI** | Beautiful terminal-based dashboard with intuitive navigation |
 | **Web Dashboard** | Modern browser interface with charts, graphs, and WebSocket integration |
@@ -82,9 +84,33 @@ pip install -r requirements.txt
 
 ## 🎯 Quick Start
 
+### 🚀 Option 1: GUI Control Panel (Recommended - Like XAMPP)
+
+The easiest way to use SMO is with the GUI Control Panel, which provides a web-based interface to start/stop services, view metrics, and manage configuration:
+
+```bash
+source venv/bin/activate
+python3 gui_dashboard.py
+```
+
+Then open [http://localhost:8000](http://localhost:8000) in your browser.
+
+**Features:**
+- ✅ Start/Stop services with a click
+- ✅ Real-time system metrics display
+- ✅ Live log viewer
+- ✅ Configuration editor
+- ✅ Clean, modern interface
+
+![SMO Control Panel](https://github.com/user-attachments/assets/78f9914e-efca-485e-852a-a09888220682)
+
+---
+
+### 🔧 Option 2: Manual Setup
+
 SMO uses a **split architecture**: the Agent collects metrics in the background, while the TUI/Dashboard displays them. Both must run simultaneously for live data.
 
-### Terminal 1: Start the Agent
+#### Terminal 1: Start the Agent
 
 ```bash
 source venv/bin/activate
@@ -93,7 +119,7 @@ python3 agent.py run
 
 The agent silently collects metrics and writes to `logs/smo_metrics.jsonl`.
 
-### Terminal 2: Launch the Dashboard
+#### Terminal 2: Launch the Dashboard
 
 **Option A: Terminal UI (TUI)**
 
